@@ -454,6 +454,9 @@ function input_altitude() {
             fi
         fi
         echo -ne "${NOCOLOR}"
+
+        set -x
+
         read -r USER_OUTPUT
         echo ""
 
@@ -462,7 +465,7 @@ function input_altitude() {
             valid_input=1
             # convert m to ft
             bc_expression="scale=3; ${USER_OUTPUT%m} * 3.28084"
-            alt_m="$USER_OUTPUT"
+            alt_m="${USER_OUTPUT%m}"
             alt_ft="$(echo $bc_expression | bc -l)"
 
         # if answer was given in ft...
@@ -471,7 +474,7 @@ function input_altitude() {
             valid_input=1
             bc_expression="scale=3; ${USER_OUTPUT%ft} * 0.3048"
             alt_m="$(echo $bc_expression | bc -l)"
-            alt_ft="$USER_OUTPUT"
+            alt_ft="${USER_OUTPUT%ft}"
 
         # if wrong answer was given...
         else
