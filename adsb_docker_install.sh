@@ -461,7 +461,7 @@ function input_altitude() {
         if echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*m$' > /dev/null 2>&1; then
             valid_input=1
             # convert m to ft
-            bc_expression="scale=3; ${USER_OUTPUT%m} | sed * 3.28084"
+            bc_expression="scale=3; ${USER_OUTPUT%m} * 3.28084"
             alt_m="$USER_OUTPUT"
             alt_ft="$(echo $bc_expression | bc -l)"
 
