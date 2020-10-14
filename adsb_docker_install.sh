@@ -453,7 +453,7 @@ function input_altitude() {
             alt_ft="$(echo $bc_expression | bc -l)"
 
         # if answer was given in ft...
-        if echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*ft$' > /dev/null 2>&1; then
+        elif echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*ft$' > /dev/null 2>&1; then
             # convert ft to m
             valid_input=1
             bc_expression="scale=3; $USER_OUTPUT * 0.3048"
