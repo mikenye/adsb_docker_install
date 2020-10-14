@@ -487,16 +487,18 @@ function input_adsbx_details() {
         read -r USER_OUTPUT
         echo ""
 
-        if [[ -n "$USER_OUTPUT" ]]; then
+        if [[ -z "$USER_OUTPUT" ]]; then
             logger "input_adsbx_details" "Generating new ADSB Exchange UUID..." "$LIGHTBLUE"
             if adsbx_uuid=$(docker run --rm -it --entrypoint uuidgen mikenye/adsbexchange -t 2>/dev/null); then
                 logger "input_adsbx_details" "New ADSB Exchange UUID generated OK: $adsbx_uuid" "$LIGHTBLUE"
+                valid_output=1
             else
                 logger "input_adsbx_details" "ERROR: Problem generating new ADSB Exchange UUID :-(" "$LIGHTRED"
                 exit_failure
             fi
         else
             adsbx_uuid="$USER_OUTPUT"
+            valid_output=1
         fi
     done
 
