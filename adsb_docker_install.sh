@@ -8,20 +8,20 @@ export TOP_PID=$$
 
 # Colors
 NOCOLOR='\033[0m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
+#RED='\033[0;31m'
+#GREEN='\033[0;32m'
+#ORANGE='\033[0;33m'
+#BLUE='\033[0;34m'
+#PURPLE='\033[0;35m'
+#CYAN='\033[0;36m'
 LIGHTGRAY='\033[0;37m'
-DARKGRAY='\033[1;30m'
+#DARKGRAY='\033[1;30m'
 LIGHTRED='\033[1;31m'
 LIGHTGREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 LIGHTBLUE='\033[1;34m'
-LIGHTPURPLE='\033[1;35m'
-LIGHTCYAN='\033[1;36m'
+#LIGHTPURPLE='\033[1;35m'
+#LIGHTCYAN='\033[1;36m'
 WHITE='\033[1;37m'
 
 # File/path locations
@@ -384,7 +384,7 @@ function find_rtlsdr_devices() {
                 idProduct=$(echo "$line" | grep -oP 'ATTRS\{idProduct\}=="\K[0-9a-f]{4}')
 
                 # look for the USB devices
-                for lsusbline in "$(lsusb -d "$idVendor:$idProduct")"; do
+                for lsusbline in $(lsusb -d "$idVendor:$idProduct"); do
 
                     # get bus & device number
                     usb_bus=$(echo "$lsusbline" | grep -oP '^Bus \K\d{3}')
@@ -539,6 +539,7 @@ function set_rtlsdr_serial_to_00001090() {
 
 # Initialise log file
 logger_logfile_only "main" "Script started"
+#shellcheck disable=SC2128,SC1102
 command_line="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
 logger_logfile_only "main" "Full command line: $command_line"
 
@@ -595,6 +596,7 @@ RTLSDR_ADSB_
 confirm_prefs=0
 while [[ "$confirm_prefs" -eq "0" ]]; do
     if [[ -e "$PREFSFILE" ]]; then
+        #shellcheck disable=SC1090
         source "$PREFSFILE"
         show_preferences
         if yes_or_no_input "Do you want to change these preferences?"; then
