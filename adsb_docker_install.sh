@@ -225,25 +225,25 @@ function install_docker() {
 function get_latest_docker_compose_version() {
 
     # get latest version of docker-compose
-    logger "update_docker_compose" "Querying for latest version of docker-compose..." "$LIGHTBLUE"
+    logger "get_latest_docker_compose_version" "Querying for latest version of docker-compose..." "$LIGHTBLUE"
 
     # clone docker-compose repo
-    logger_logfile_only "update_docker_compose" "Attempting clone of docker-compose git repo"
+    logger_logfile_only "get_latest_docker_compose_version" "Attempting clone of docker-compose git repo"
     if git clone "$REPO_URL_DOCKER_COMPOSE" "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
         # do nothing
         :
     else
-        logger "update_docker_compose" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
+        logger "get_latest_docker_compose_version" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
         exit_failure
     fi
     # get latest tag version from cloned repo
-    logger_logfile_only "update_docker_compose" "Attempting to get latest tag from cloned docker-compose git repo"
+    logger_logfile_only "get_latest_docker_compose_version" "Attempting to get latest tag from cloned docker-compose git repo"
     pushd "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1 || exit_failure
     if docker_compose_version_latest=$(git tag --sort="-creatordate" | head -1); then
         # do nothing
         :
     else
-        logger "update_docker_compose" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
+        logger "get_latest_docker_compose_version" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
         exit_failure
     fi
     popd >> "$LOGFILE" 2>&1 || exit_failure
@@ -271,7 +271,7 @@ function update_docker_compose() {
     # check version of docker-compose vs latest
     logger_logfile_only "update_docker_compose" "Checking version of installed docker-compose vs latest docker-compose"
     if [[ "$docker_compose_version" == "$docker_compose_version_latest" ]]; then
-        logger "update_docker_compose" "docker-compose is already installed, and running the latest version!" "$LIGHTGREEN"
+        logger "update_docker_compose" "docker-compose is the latest version!" "$LIGHTGREEN"
     else
 
         # remove old versions of docker-compose
