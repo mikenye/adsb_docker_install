@@ -76,6 +76,33 @@ function exit_failure() {
     kill -s TERM $TOP_PID
 }
 
+function asciiplane() {
+
+    cat <<ENDOFPLANE
+                      ___
+                      \\ \
+                       \\ `\
+    ___                 \\  \
+   |    \                \\  `\
+   |_____\                \    \
+   |______\                \    `\
+   |       \                \     \
+   |      __\__---------------------------------._.
+ __|---~~~__o_o_o_o_o_o_o_o_o_o_o_o_o_o_o_o_o_o_[][\__
+|___                         /~      )                \__
+    ~~~---..._______________/      ,/_________________/
+                           /      /
+                          /     ,/
+                         /     /
+                        /    ,/
+                       /    /
+                      //  ,/
+                     //  /
+                    // ,/
+                   //_/
+ENDOFPLANE
+}
+
 function update_apt_repos() {
     logger "update_apt_repos" "Performing 'apt-get update'..." "$LIGHTBLUE"
     if apt-get update -y >> "$LOGFILE" 2>&1; then
@@ -463,13 +490,34 @@ function get_preferences() {
     echo ""
     if yes_or_no_input "Do you wish to use an RTL-SDR device attached to this machine to receive 1090MHz traffic?"; then
 
+        # Look for RTL-SDR radios
+        find_rtlsdr_devices
+        echo -n "Found ${#RTLSDR_DEVICES[@]} "
+        if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
+            echo "radios."
+        elif [[ "${#RTLSDR_DEVICES[@]}" -eq 0 ]]; then
+            echo "radios."
+        else
+            echo "radio."
+        fi
+
+        # TODO if radios already have 00001090 and 00000978 serials, then
+        #   - let user know radios already have serials set
+        #   - assume 00001090 and 00000978 are for ADS-B and 
+        # Example wording:
+        #   "Found RTL-SDR with serial number '00001090'. Will assume this device should be used for ADS-B ES (1090MHz) reception."
+        #   "Found RTL-SDR with serial number '00000978'. Will assume this device should be used for ADS-B UAT (978MHz) reception."
+        # press any key to continue
+
         only_one_radio_attached=0
         while [[ "$only_one_radio_attached" -eq 0 ]]; do
 
             # Ask the user to unplug all but one RTL-SDR
-            echo -e "${YELLOW}Please ensure the only RTL-SDR device connected to this machine is the one to be used for 1090MHz!${NOCOLOR}"
+            echo ""
+            echo -e "${YELLOW}Please ensure the only RTL-SDR device connected to this machine is the one to be used for ADS-B (1090MHz) reception!${NOCOLOR}"
             echo -e "${YELLOW}Disconnect all other RTL-SDR devices!${NOCOLOR}"
             read -p "Press any key to continue" -sn1
+            echo ""
 
             # Look for RTL-SDR radios
             find_rtlsdr_devices
@@ -480,8 +528,8 @@ function get_preferences() {
                 echo "radios."
             else
                 echo "radio."
-            fi  
-        
+            fi
+
             # If more than one radio is detected, then ask the user to unplug all other radios except the one they wish to use for ADSB 1090MHz reception.
             if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
                 echo ""
@@ -489,16 +537,19 @@ function get_preferences() {
                 echo ""
             elif [[ "${#RTLSDR_DEVICES[@]}" -eq 1 ]]; then
                 only_one_radio_attached=1
+            else
+                logger "get_preferences" "No RTL-SDR devices found. Please connect the RTL-SDR device that will be used for ADS-B (1090MHz) reception."
             fi
         done
 
         # If only one radio present, check serial. If not 00001090 then change to this
         RTLSDR_ADSB_
-        
+
     fi
 
     echo ""
     echo -e "${WHITE}===== Feeder Preferences =====${NOCOLOR}"
+    echo ""
     # Delete prefs file if it exists
     rm "$PREFSFILE" > /dev/null 2>&1 || true
     touch "$PREFSFILE"
@@ -554,6 +605,8 @@ function unload_rtlsdr_kernel_modules() {
                 echo ""
                 exit 1
             fi
+        else
+            logger "unload_rtlsdr_kernel_modules" "Module '$modulename' is not loaded!" "$LIGHTGREEN"
         fi
     done
 }
@@ -583,6 +636,14 @@ if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root! Try 'sudo $command_line'" 
    exit 1
 fi
+
+echo ""
+echo ""
+echo ""
+asciiplane
+echo ""
+echo "Welcome to the ADS-B Docker Easy Install Script"
+echo ""
 
 # Get git to download list of supported rtl-sdr radios
 if ! is_git_installed; then
