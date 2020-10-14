@@ -158,76 +158,70 @@ function is_binary_installed() {
     fi
 }
 
-function install_docker() {
+function update_docker() {
 
-    # Check if docker is installed
-    logger_logfile_only "install_docker" "Checking if docker is installed"
-    if which docker >> "$LOGFILE" 2>&1; then
+    # Docker is already installed
+    logger "install_docker" "Docker is already installed!" "$LIGHTGREEN"
 
-        # Docker is already installed
-        logger "install_docker" "Docker is already installed!" "$LIGHTGREEN"
+    # Check to see if docker requires an update
+    logger_logfile_only "install_docker" "Checking to see if docker components require an update"
+    if [[ "$(apt-get -u --just-print upgrade | grep -c docker-ce)" -gt "0" ]]; then
+        logger_logfile_only "install_docker" "Docker components DO require an update"
 
-        # Check to see if docker requires an update
-        logger_logfile_only "install_docker" "Checking to see if docker components require an update"
-        if [[ "$(apt-get -u --just-print upgrade | grep -c docker-ce)" -gt "0" ]]; then
-            logger_logfile_only "install_docker" "Docker components DO require an update"
+        # Check if containers are running, if not, attempt to upgrade to latest version
+        logger_logfile_only "install_docker" "Checking if containers are running"
+        if [[ "$(docker ps -q)" -gt "0" ]]; then
+            
+            # Containers running, don't update
+            logger "install_docker" "WARNING: Docker components require an update, but you have running containers. Not updating docker, you will need to do this manually." "$YELLOW"
 
-            # Check if containers are running, if not, attempt to upgrade to latest version
-            logger_logfile_only "install_docker" "Checking if containers are running"
-            if [[ "$(docker ps -q)" -gt "0" ]]; then
-                
-                # Containers running, don't update
-                logger "install_docker" "WARNING: Docker components require an update, but you have running containers. Not updating docker, you will need to do this manually." "$YELLOW"
+        else
+
+            # Containers not running, do update
+            logger "install_docker" "Docker components require an update. Performing update..." "$LIGHTBLUE"
+            if apt-get upgrade -y docker-ce >> "$LOGFILE" 2>&1; then
+
+                # Docker upgraded OK!
+                logger "install_docker" "Docker upgraded successfully!" "$LIGHTGREEN"
 
             else
 
-                # Containers not running, do update
-                logger "install_docker" "Docker components require an update. Performing update..." "$LIGHTBLUE"
-                if apt-get upgrade -y docker-ce >> "$LOGFILE" 2>&1; then
+                # Docker upgrade failed
+                logger "install_docker" "ERROR: Problem updating docker :-(" "$LIGHTRED"
+                exit_failure
 
-                    # Docker upgraded OK!
-                    logger "install_docker" "Docker upgraded successfully!" "$LIGHTGREEN"
-
-                else
-
-                    # Docker upgrade failed
-                    logger "install_docker" "ERROR: Problem updating docker :-(" "$LIGHTRED"
-                    exit_failure
-
-                fi
             fi
-
-        else
-            logger_logfile_only "install_docker" "Docker components DO NOT require an update"
         fi
 
     else
+        logger_logfile_only "install_docker" "Docker components DO NOT require an update"
+    fi
 
-        # Docker is not installed
-        logger "install_docker" "Installing docker..." "$LIGHTBLUE"
+function install_docker() {}
 
-        # Attempt download of docker script
-        logger_logfile_only "install_docker" "Attempt download of get-docker.sh script"
-        if curl -o /tmp/get-docker.sh -fsSL https://get.docker.com >> "$LOGFILE" 2>&1; then
-            logger_logfile_only "install_docker" "get-docker.sh script downloaded OK"
-        else
-            logger "install_docker" "ERROR: Could not download get-docker.sh script from https://get.docker.com :-(" "$LIGHTRED"
-            exit_failure
-        fi
+    # Docker is not installed
+    logger "install_docker" "Installing docker..." "$LIGHTBLUE"
 
-        # Attempt to run docker script
-        logger_logfile_only "install_docker" "Attempt to run get-docker.sh script"
-        if sh /tmp/get-docker.sh >> "$LOGFILE" 2>&1; then
-            logger "install_docker" "Docker installed successfully!" "$LIGHTGREEN"
-        else
-            logger "install_docker" "ERROR: Problem running get-docker.sh installation script :-(" "$LIGHTRED"
-            exit_failure
-        fi
+    # Attempt download of docker script
+    logger_logfile_only "install_docker" "Attempt download of get-docker.sh script"
+    if curl -o /tmp/get-docker.sh -fsSL https://get.docker.com >> "$LOGFILE" 2>&1; then
+        logger_logfile_only "install_docker" "get-docker.sh script downloaded OK"
+    else
+        logger "install_docker" "ERROR: Could not download get-docker.sh script from https://get.docker.com :-(" "$LIGHTRED"
+        exit_failure
+    fi
+
+    # Attempt to run docker script
+    logger_logfile_only "install_docker" "Attempt to run get-docker.sh script"
+    if sh /tmp/get-docker.sh >> "$LOGFILE" 2>&1; then
+        logger "install_docker" "Docker installed successfully!" "$LIGHTGREEN"
+    else
+        logger "install_docker" "ERROR: Problem running get-docker.sh installation script :-(" "$LIGHTRED"
+        exit_failure
     fi
 }
 
-function install_docker_compose() {
-
+function update_docker_compose() {
     local docker_compose_version
     local docker_compose_version_latest
 
@@ -257,98 +251,67 @@ function install_docker_compose() {
     # clean up temp downloaded docker_compose repo
     rm -r "$REPO_PATH_DOCKER_COMPOSE"
 
-    # Check if docker_compose is installed
-    logger_logfile_only "install_docker_compose" "Checking if docker-compose is installed"
-    if which docker-compose >> "$LOGFILE" 2>&1; then
+}
 
-        # docker_compose is already installed
-        logger_logfile_only "install_docker_compose" "docker-compose is already installed, attempting to get version information:"
-        if docker-compose version >> "$LOGFILE" 2>&1; then
-            # do nothing
-            :
-        else
-            logger "install_docker_compose" "ERROR: Problem getting docker-compose version :-(" "$LIGHTRED"
-            exit_failure
-        fi
-        docker_compose_version=$(docker-compose version | grep docker-compose | cut -d ',' -f 1 | rev | cut -d ' ' -f 1 | rev)
+function update_docker_compose() {
 
-        # check version of docker-compose vs latest
-        logger_logfile_only "install_docker_compose" "Checking version of installed docker-compose vs latest docker-compose"
-        if [[ "$docker_compose_version" == "$docker_compose_version_latest" ]]; then
-            logger "install_docker_compose" "docker-compose is already installed, and running the latest version!" "$LIGHTGREEN"
-        else
+    # docker_compose is already installed
+    logger_logfile_only "install_docker_compose" "docker-compose is already installed, attempting to get version information:"
+    if docker-compose version >> "$LOGFILE" 2>&1; then
+        # do nothing
+        :
+    else
+        logger "install_docker_compose" "ERROR: Problem getting docker-compose version :-(" "$LIGHTRED"
+        exit_failure
+    fi
+    docker_compose_version=$(docker-compose version | grep docker-compose | cut -d ',' -f 1 | rev | cut -d ' ' -f 1 | rev)
 
-            # remove old versions of docker-compose
-            logger "install_docker_compose" "Attempting to remove previous outdated versions of docker-compose..." "$YELLOW"
-            while which docker-compose >> "$LOGFILE" 2>&1; do
+    # check version of docker-compose vs latest
+    logger_logfile_only "install_docker_compose" "Checking version of installed docker-compose vs latest docker-compose"
+    if [[ "$docker_compose_version" == "$docker_compose_version_latest" ]]; then
+        logger "install_docker_compose" "docker-compose is already installed, and running the latest version!" "$LIGHTGREEN"
+    else
 
-                # if docker-compose was installed via apt-get
-                if [[ $(dpkg --list | grep -c docker-compose) -gt "0" ]]; then
-                    logger_logfile_only "install_docker_compose" "Attempting 'apt-get remove -y docker-compose'..."
-                    if apt-get remove -y docker-compose >> "$LOGFILE" 2>&1; then
-                        # do nothing
-                        :
-                    else
-                        logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
-                        exit_failure
-                    fi
-                elif which pip >> "$LOGFILE" 2>&1; then
-                    if [[ $(pip list | grep -c docker-compose) -gt "0" ]]; then
-                        logger_logfile_only "install_docker_compose" "Attempting 'pip uninstall -y docker-compose'..."
-                        if pip uninstall -y docker-compose >> "$LOGFILE" 2>&1; then
-                            # do nothing
-                            :
-                        else
-                            logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
-                            exit_failure
-                        fi
-                    fi
-                elif [[ -f "/usr/local/bin/docker-compose" ]]; then
-                    logger_logfile_only "install_docker_compose" "Attempting 'mv /usr/local/bin/docker-compose /usr/local/bin/docker-compose.oldversion'..."
-                    if mv -v "/usr/local/bin/docker-compose" "/usr/local/bin/docker-compose.oldversion.$(date +%s)" >> "$LOGFILE" 2>&1; then
-                        # do nothing
-                        :
-                    else
-                        logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
-                        exit_failure
-                    fi
+        # remove old versions of docker-compose
+        logger "install_docker_compose" "Attempting to remove previous outdated versions of docker-compose..." "$YELLOW"
+        while which docker-compose >> "$LOGFILE" 2>&1; do
+
+            # if docker-compose was installed via apt-get
+            if [[ $(dpkg --list | grep -c docker-compose) -gt "0" ]]; then
+                logger_logfile_only "install_docker_compose" "Attempting 'apt-get remove -y docker-compose'..."
+                if apt-get remove -y docker-compose >> "$LOGFILE" 2>&1; then
+                    # do nothing
+                    :
                 else
-                    logger_logfile_only "install_docker_compose" "Unsupported docker-compose installation method detected."
                     logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
                     exit_failure
                 fi
-            done
-
-            # Install current version of docker-compose as a container
-            logger "install_docker_compose" "Installing docker-compose..." "$LIGHTBLUE"
-            logger_logfile_only "install_docker_compose" "Attempting download of latest docker-compose container wrapper script"
-            if curl -L --fail "https://github.com/docker/compose/releases/download/$docker_compose_version_latest/run.sh" -o /usr/local/bin/docker-compose >> "$LOGFILE" 2>&1; then
-                logger_logfile_only "install_docker_compose" "Download of latest docker-compose container wrapper script was OK"
-
-                # Make executable
-                logger_logfile_only "install_docker_compose" "Attempting 'chmod a+x /usr/local/bin/docker-compose'..."
-                if chmod -v a+x /usr/local/bin/docker-compose >> "$LOGFILE" 2>&1; then
-                    logger_logfile_only "install_docker_compose" "'chmod a+x /usr/local/bin/docker-compose' was successful"
-
-                    # Make sure we can now run docker-compose and it is the latest version
-                    docker_compose_version=$(docker-compose version | grep docker-compose | cut -d ',' -f 1 | rev | cut -d ' ' -f 1 | rev)
-                    if [[ "$docker_compose_version" == "$docker_compose_version_latest" ]]; then
-                        logger "install_docker_compose" "docker-compose installed successfully!" "$LIGHTGREEN"
+            elif which pip >> "$LOGFILE" 2>&1; then
+                if [[ $(pip list | grep -c docker-compose) -gt "0" ]]; then
+                    logger_logfile_only "install_docker_compose" "Attempting 'pip uninstall -y docker-compose'..."
+                    if pip uninstall -y docker-compose >> "$LOGFILE" 2>&1; then
+                        # do nothing
+                        :
                     else
-                        logger "install_docker_compose" "ERROR: Issue running newly installed docker-compose :-(" "$LIGHTRED"
+                        logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
                         exit_failure
                     fi
+                fi
+            elif [[ -f "/usr/local/bin/docker-compose" ]]; then
+                logger_logfile_only "install_docker_compose" "Attempting 'mv /usr/local/bin/docker-compose /usr/local/bin/docker-compose.oldversion'..."
+                if mv -v "/usr/local/bin/docker-compose" "/usr/local/bin/docker-compose.oldversion.$(date +%s)" >> "$LOGFILE" 2>&1; then
+                    # do nothing
+                    :
                 else
-                    logger "install_docker_compose" "ERROR: Problem chmodding docker-compose container wrapper script :-(" "$LIGHTRED"
+                    logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
                     exit_failure
                 fi
             else
-                logger "install_docker_compose" "ERROR: Problem downloading docker-compose container wrapper script :-(" "$LIGHTRED"
+                logger_logfile_only "install_docker_compose" "Unsupported docker-compose installation method detected."
+                logger "install_docker_compose" "ERROR: Problem uninstalling outdated docker-compose :-(" "$LIGHTRED"
                 exit_failure
             fi
-        fi
-    
-    else
+        done
 
         # Install current version of docker-compose as a container
         logger "install_docker_compose" "Installing docker-compose..." "$LIGHTBLUE"
@@ -377,6 +340,36 @@ function install_docker_compose() {
             logger "install_docker_compose" "ERROR: Problem downloading docker-compose container wrapper script :-(" "$LIGHTRED"
             exit_failure
         fi
+    fi
+}
+
+function install_docker_compose() {
+
+    # Install current version of docker-compose as a container
+    logger "install_docker_compose" "Installing docker-compose..." "$LIGHTBLUE"
+    logger_logfile_only "install_docker_compose" "Attempting download of latest docker-compose container wrapper script"
+    if curl -L --fail "https://github.com/docker/compose/releases/download/$docker_compose_version_latest/run.sh" -o /usr/local/bin/docker-compose >> "$LOGFILE" 2>&1; then
+        logger_logfile_only "install_docker_compose" "Download of latest docker-compose container wrapper script was OK"
+
+        # Make executable
+        logger_logfile_only "install_docker_compose" "Attempting 'chmod a+x /usr/local/bin/docker-compose'..."
+        if chmod -v a+x /usr/local/bin/docker-compose >> "$LOGFILE" 2>&1; then
+            logger_logfile_only "install_docker_compose" "'chmod a+x /usr/local/bin/docker-compose' was successful"
+
+            # Make sure we can now run docker-compose and it is the latest version
+            if docker-compose version >> "$LOGFILE" 2>&1; then
+                logger "install_docker_compose" "docker-compose installed successfully!" "$LIGHTGREEN"
+            else
+                logger "install_docker_compose" "ERROR: Issue running newly installed docker-compose :-(" "$LIGHTRED"
+                exit_failure
+            fi
+        else
+            logger "install_docker_compose" "ERROR: Problem chmodding docker-compose container wrapper script :-(" "$LIGHTRED"
+            exit_failure
+        fi
+    else
+        logger "install_docker_compose" "ERROR: Problem downloading docker-compose container wrapper script :-(" "$LIGHTRED"
+        exit_failure
     fi
 }
 
@@ -881,8 +874,6 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 echo ""
-echo ""
-echo ""
 asciiplane
 echo ""
 echo "Welcome to the ADS-B Docker Easy Install Script"
@@ -944,6 +935,46 @@ if ! is_binary_installed expect; then
     echo ""
 fi
 
+# Get expect to automatically run through sign-up processes
+if ! is_binary_installed docker; then
+    echo ""
+    echo -e "${WHITE}===== Installing 'docker' =====${NOCOLOR}"
+    echo ""
+    echo "This script needs to install docker, which is used for:"
+    echo " * Running the containers!"
+    echo ""
+    if ! input_yes_or_no "May this script install 'docker'?"; then
+        echo "Not proceeding."
+        echo ""
+        exit 1
+    else
+        install_docker
+    fi
+    echo ""
+else
+    update_docker
+fi
+
+# Get expect to automatically run through sign-up processes
+if ! is_binary_installed docker-compose; then
+    echo ""
+    echo -e "${WHITE}===== Installing 'docker-compose' =====${NOCOLOR}"
+    echo ""
+    echo "This script needs to install docker-compose, which is used for:"
+    echo " * Managing the containers!"
+    echo ""
+    if ! input_yes_or_no "May this script install 'docker-compose'?"; then
+        echo "Not proceeding."
+        echo ""
+        exit 1
+    else
+        install_docker_compose
+    fi
+    echo ""
+else
+    update_docker_compose
+fi
+
 # Unload and blacklist rtlsdr kernel modules
 unload_rtlsdr_kernel_modules
 
@@ -966,9 +997,6 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
     fi
 done
 
-
-# TODO write preferences out to a file just in case this fails
-
 # Final go-ahead
 echo ""
 echo -e "${WHITE}===== FINAL CONFIRMATION =====${NOCOLOR}"
@@ -979,11 +1007,4 @@ if ! input_yes_or_no "Are you sure you want to proceed?"; then
     exit 1
 fi
 echo ""
-
-# Install docker
-install_docker
-
-# Install docker-compose
-install_docker_compose
-
 echo ""
