@@ -575,21 +575,42 @@ function input_fr24_details() {
             logger_logfile_only "input_fr24_details" "Writing out expect script..."
             write_fr24_expectscript
             logger_logfile_only "input_fr24_details" "Running expect script..."
-            set -x
-            expect "$FILE_FR24SIGNUP_EXPECT"
-            echo "EXIT CODE: $?"
-            set +x
-            echo ""
-            echo -e "${WHITE}===== End of Flightradar24 Sign-up Process =====${NOCOLOR}"
-            echo ""
+            if expect "$FILE_FR24SIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
+                logger_logfile_only "input_fr24_details" "Expect script finished OK"
+            else
+                logger "input_fr24_details" "ERROR: Problem running flightradar24 sign-up process :-(" "$LIGHTRED"
+                exit_failure
+            fi
+            
+            # try to get sharing key
+            regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
+            if docker logs fr24signup | grep -P "$regex_sharing_key" >> "$LOGFILE" 2>&1; then
+                sharing_key=$(docker logs fr24signup | \
+                grep -P "$regex_sharing_key" | \
+                sed -r "s/$regex_sharing_key/\1/")
+                echo "FR24_KEY=$sharing_key" >> "$PREFSFILE"
+                logger "input_fr24_details" "Your new flightradar24 sharing key is: $sharing_key" "$LIGHTGREEN"
+            else
+                logger "input_fr24_details" "ERROR: Could not find flightradar24 sharing key :-(" "$LIGHTRED"
+                exit_failure
+            fi
 
+            # try to get radar ID
+            regex_radar_id='^\+ Your radar id is ([\w\-]+), please include it in all email communication with us\.'
+            if docker logs fr24signup | grep -P "$regex_radar_id" >> "$LOGFILE" 2>&1; then
+                radar_id=$(docker logs fr24signup | \
+                grep -P "$regex_radar_id" | \
+                sed -r "s/$regex_radar_id/\1/")
+                echo "FR24_RADAR_ID=$radar_id" >> "$PREFSFILE"
+                logger "input_fr24_details" "Your new flightradar24 radar ID is: $radar_id" "$LIGHTGREEN"
+            else
+                logger "input_fr24_details" "ERROR: Could not find flightradar24 radar ID :-(" "$LIGHTRED"
+                exit_failure
+            fi
         else
             valid_input=1
         fi
     done
-
-    echo "ADSBX_UUID=$adsbx_uuid" >> "$PREFSFILE"
-    echo "ADSBX_SITENAME=$adsbx_sitename" >> "$PREFSFILE"
 }
 
 function find_rtlsdr_devices() {
@@ -796,6 +817,7 @@ function get_feeder_preferences() {
         echo "FEED_FLIGHTRADAR24=\"n\"" >> "$PREFSFILE"
         echo "FR24_EMAIL=" >> "$PREFSFILE"
         echo "FR24_KEY=" >> "$PREFSFILE"
+        echo "FR24_RADAR_ID=" >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
         echo "FEED_OPENSKY=\"y\"" >> "$PREFSFILE"
