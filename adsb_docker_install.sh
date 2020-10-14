@@ -401,7 +401,7 @@ function input_lat_long() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}.\d{3,5}$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}\.\d{3,5}$' > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid latitude!${NOCOLOR}"
@@ -417,7 +417,7 @@ function input_lat_long() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}.\d{3,5}$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}\.\d{3,5}$' > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid longitude!${NOCOLOR}"
