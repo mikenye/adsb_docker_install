@@ -160,9 +160,6 @@ function is_binary_installed() {
 
 function update_docker() {
 
-    # Docker is already installed
-    logger "update_docker" "Docker is already installed!" "$LIGHTGREEN"
-
     # Check to see if docker requires an update
     logger_logfile_only "update_docker" "Checking to see if docker components require an update"
     if [[ "$(apt-get -u --just-print upgrade | grep -c docker-ce)" -gt "0" ]]; then
@@ -194,7 +191,7 @@ function update_docker() {
         fi
 
     else
-        logger_logfile_only "update_docker" "Docker components DO NOT require an update"
+        logger "update_docker" "Docker components are up-to-date!" "$LIGHTGREEN"
     fi
 }
 
