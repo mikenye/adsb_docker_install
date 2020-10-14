@@ -18,6 +18,7 @@ WHITE='\033[1;37m'
 # File/path locations
 PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
+FILE_FR24SIGNUP_EXPECT="/tmp/fr24signup.exp"
 REPO_PATH_DOCKER_COMPOSE="/tmp/adsb_docker_install_docker_compose"
 REPO_PATH_RTLSDR="/tmp/adsb_docker_install_rtlsdr"
 
@@ -62,11 +63,54 @@ function exit_failure() {
     echo ""
     echo "Installation has failed. A log file containing troubleshooting information is located at:"
     echo "$LOGFILE"
-    echo "If opening a GitHub issue for assistance, please attach the contents of this file. however:"
-    echo "${LIGHTRED}Please remember to remove any API/sharing keys, UUIDs, usernames/passwords, etc before posting!${NOCOLOR}"
+    echo "If opening a GitHub issue for assistance, be prepared to send this file in. however:"
+    echo "${LIGHTRED}Please remember to remove any:"
+    echo "  - email addresses"
+    echo "  - usernames/passwords"
+    echo "  - API keys / sharing keys / UUIDs"
+    echo "  - your exact location in lat/long"
+    echo "...and any other sensitive data before posting in a public forum!${NOCOLOR}"
     echo ""
     kill -s TERM $TOP_PID
 }
+
+function write_fr24_expectscript() {
+    source "$PREFSFILE"
+    {
+        echo '#!/usr/bin/env expect'
+        echo 'set timeout 120'
+        echo 'spawn docker run --name=fr24signup -it --entrypoint fr24feed mikenye/fr24feed --signup'
+        echo 'expect "Step 1.1 - Enter your email address (username@domain.tld)"'
+        echo 'expect "$:"'
+        echo "send \"${FR24_EMAIL}\r\""
+        echo 'expect "Step 1.2 - If you used to feed FR24 with ADS-B data before, enter your sharing key."'
+        echo 'expect "$:"'
+        echo "send \"\r\""
+        echo 'expect "Step 1.3 - Would you like to participate in MLAT calculations? (yes/no)$:"'
+        echo "send \"yes\r\""
+        echo "expect \"Step 3.A - Enter antenna's latitude (DD.DDDD)\""
+        echo 'expect "$:"'
+        echo "send \"${FEEDER_LAT}\r\""
+        echo "expect \"Step 3.B - Enter antenna's longitude (DDD.DDDD)\""
+        echo 'expect "$:"'
+        echo "send \"${FEEDER_LONG}\r\""
+        echo "expect \"Step 3.C - Enter antenna's altitude above the sea level (in feet)\""
+        echo 'expect "$:"'
+        echo "send \"${FEEDER_ALT_FT}\r\""
+        echo 'expect "Would you like to continue using these settings?"'
+        echo 'expect "Enter your choice (yes/no)$:"'
+        echo "send \"yes\r\""
+        echo 'expect "Step 4.1 - Receiver selection (in order to run MLAT please use DVB-T stick with dump1090 utility bundled with fr24feed):"'
+        echo 'expect "Enter your receiver type (1-7)$:"'
+        echo "send \"7\r\""
+        echo 'expect "Step 6 - Please select desired logfile mode:"'
+        echo 'expect "Select logfile mode (0-2)$:"'
+        echo "send \"0\r\""
+        echo 'expect "Submitting form data...OK"'
+        echo 'expect "+ Your sharing key ("'
+        echo 'expect "+ Your radar id is"'
+        echo 'expect "Saving settings to /etc/fr24feed.ini...OK"'
+    } > "$FILE_FR24SIGNUP_EXPECT"
 
 function asciiplane() {
 
@@ -104,47 +148,27 @@ function update_apt_repos() {
     fi
 }
 
-function is_git_installed() {
-    # Check if git is installed
-    logger_logfile_only "is_git_installed" "Checking if git is installed"
-    if which git >> "$LOGFILE" 2>&1; then
-        # git is already installed
-        logger "is_git_installed" "git is already installed!" "$LIGHTGREEN"
-    else
-        return 1
-    fi
-}
-
-function install_git() {
-    logger "install_git" "Installing git..." "$LIGHTBLUE"
+function install_with_apt() {
+    # $1 = package name
+    logger "install_with_apt" "Installing package $1..." "$LIGHTBLUE"
     # Attempt download of docker script
-    if apt-get install -y git >> "$LOGFILE" 2>&1; then
-        logger "install_git" "git installed successfully!" "$LIGHTGREEN"
+    if apt-get install -y "$1" >> "$LOGFILE" 2>&1; then
+        logger "install_with_apt" "Package $1 installed successfully!" "$LIGHTGREEN"
     else
-        logger "install_git" "ERROR: Could not install git via apt-get :-(" "$LIGHTRED"
+        logger "install_with_apt" "ERROR: Could not install package $1 via apt-get :-(" "$LIGHTRED"
         exit_failure
     fi
 }
 
-function is_bc_installed() {
+function is_binary_installed() {
+    # $1 = binary name
     # Check if bc is installed
-    logger_logfile_only "is_bc_installed" "Checking if bc is installed"
-    if which bc >> "$LOGFILE" 2>&1; then
-        # bc is already installed
-        logger "is_bc_installed" "bc is already installed!" "$LIGHTGREEN"
+    logger_logfile_only "is_binary_installed" "Checking if $1 is installed"
+    if which "$1" >> "$LOGFILE" 2>&1; then
+        # binary is already installed
+        logger "is_binary_installed" "$1 is already installed!" "$LIGHTGREEN"
     else
         return 1
-    fi
-}
-
-function install_bc() {
-    logger "install_bc" "Installing bc..." "$LIGHTBLUE"
-    # Attempt download of docker script
-    if apt-get install -y bc >> "$LOGFILE" 2>&1; then
-        logger "install_bc" "bc installed successfully!" "$LIGHTGREEN"
-    else
-        logger "install_bc" "ERROR: Could not install bc via apt-get :-(" "$LIGHTRED"
-        exit_failure
     fi
 }
 
@@ -504,6 +528,7 @@ function input_adsbx_details() {
             logger "input_adsbx_details" "Generating new ADSB Exchange UUID..." "$LIGHTBLUE"
             if adsbx_uuid=$(docker run --rm -it --entrypoint uuidgen mikenye/adsbexchange -t 2>/dev/null); then
                 logger "input_adsbx_details" "New ADSB Exchange UUID generated OK: $adsbx_uuid" "$LIGHTBLUE"
+                echo ""
                 valid_input=1
             else
                 logger "input_adsbx_details" "ERROR: Problem generating new ADSB Exchange UUID :-(" "$LIGHTRED"
@@ -530,7 +555,59 @@ function input_adsbx_details() {
         NOSPACENAME="$(echo -n -e "${USER_OUTPUT}" | tr -c '[a-zA-Z0-9]_\- ' '_')"
         adsbx_sitename="${NOSPACENAME}_$((RANDOM % 90 + 10))"
         logger "input_adsbx_details" "Your ADSB Exchange site name will be set to: $adsbx_sitename" "$LIGHTBLUE"
+        echo ""
         valid_input=1
+    done
+
+    echo "ADSBX_UUID=$adsbx_uuid" >> "$PREFSFILE"
+    echo "ADSBX_SITENAME=$adsbx_sitename" >> "$PREFSFILE"
+}
+
+function input_fr24_details() {
+    # Get fr24 input from user
+    # $1 = previous fr24key (optional)
+    # $2 = previous fr24_email
+    # -----------------    
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter your Flightradar24 key. If you don't have one, just hit enter and you will be taken through the sign-up process: "
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: ${1}) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        # need to run sign up process
+        if [[ -z "$USER_OUTPUT" ]]; then
+            
+            # get email
+            echo -ne "  - ${LIGHTGRAY}Please enter a valid email address for your Flightradar24 account: "
+            if [[ -n "$1" ]]; then
+                echo -n "(previously: ${1}) "
+            fi
+            echo -ne "${NOCOLOR}"
+            read -r FR24_EMAIL
+            echo ""
+            echo "FR24_EMAIL=$FR24_EMAIL" >> "$PREFSFILE"
+            
+            # run through sign-up process
+            logger "input_fr24_details" "Running flightradar24 sign-up process..." "$LIGHTBLUE"
+            logger_logfile_only "input_fr24_details" "Writing out expect script..."
+            write_fr24_expectscript
+            logger_logfile_only "input_fr24_details" "Running expect script..."
+            set -x
+            expect "$FILE_FR24SIGNUP_EXPECT"
+            echo "EXIT CODE: $?"
+            set +x
+            echo ""
+            echo -e "${WHITE}===== End of Flightradar24 Sign-up Process =====${NOCOLOR}"
+            echo ""
+
+        else
+            valid_input=1
+        fi
     done
 
     echo "ADSBX_UUID=$adsbx_uuid" >> "$PREFSFILE"
@@ -824,7 +901,7 @@ echo ""
 update_apt_repos
 
 # Get git to download list of supported rtl-sdr radios
-if ! is_git_installed; then
+if ! is_binary_installed git; then
     echo ""
     echo -e "${WHITE}===== Installing 'git' =====${NOCOLOR}"
     echo ""
@@ -837,13 +914,13 @@ if ! is_git_installed; then
         echo ""
         exit 1
     else
-        install_git
+        install_with_apt git
     fi
     echo ""
 fi
 
-# Get git to download list of supported rtl-sdr radios
-if ! is_bc_installed; then
+# Get bc to convert between metric/imperial
+if ! is_binary_installed bc; then
     echo ""
     echo -e "${WHITE}===== Installing 'bc' =====${NOCOLOR}"
     echo ""
@@ -855,7 +932,25 @@ if ! is_bc_installed; then
         echo ""
         exit 1
     else
-        install_bc
+        install_with_apt bc
+    fi
+    echo ""
+fi
+
+# Get expect to automatically run through sign-up processes
+if ! is_binary_installed expect; then
+    echo ""
+    echo -e "${WHITE}===== Installing 'expect' =====${NOCOLOR}"
+    echo ""
+    echo "This script needs to install the 'expect' utility, which is used for:"
+    echo " * Automatically completing feeder sign-ups"
+    echo ""
+    if ! input_yes_or_no "May this script install the 'expect' utility?"; then
+        echo "Not proceeding."
+        echo ""
+        exit 1
+    else
+        install_with_apt expect
     fi
     echo ""
 fi
