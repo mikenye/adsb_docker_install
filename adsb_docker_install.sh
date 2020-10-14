@@ -138,7 +138,7 @@ function install_git() {
 function is_bc_installed() {
     # Check if bc is installed
     logger_logfile_only "is_bc_installed" "Checking if bc is installed"
-    if which git >> "$LOGFILE" 2>&1; then
+    if which bc >> "$LOGFILE" 2>&1; then
         # bc is already installed
         logger "is_bc_installed" "bc is already installed!" "$LIGHTGREEN"
     else
