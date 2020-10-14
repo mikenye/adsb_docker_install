@@ -600,7 +600,7 @@ function input_fr24_details() {
             fi
 
             # try to get radar ID
-            regex_radar_id='^\+ Your radar id is ([\w\-]+), please include it in all email communication with us\.'
+            regex_radar_id='^\+ Your radar id is ([A-Za-z0-9\-]+), please include it in all email communication with us\.'
             if docker logs "$FR24_SIGNUP_CONTAINER_NAME" | grep -P "$regex_radar_id" >> "$LOGFILE" 2>&1; then
                 radar_id=$(docker logs "$FR24_SIGNUP_CONTAINER_NAME" | \
                 grep -P "$regex_radar_id" | \
