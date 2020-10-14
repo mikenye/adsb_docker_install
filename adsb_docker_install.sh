@@ -78,7 +78,8 @@ function exit_failure() {
 
 function asciiplane() {
 
-    cat <<ENDOFPLANE
+cat <<ENDOFPLANE
+
                       ___
                       \\ \
                        \\ `\
@@ -100,6 +101,7 @@ function asciiplane() {
                      //  /
                     // ,/
                    //_/
+                   
 ENDOFPLANE
 }
 
