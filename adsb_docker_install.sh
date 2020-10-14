@@ -71,7 +71,8 @@ function exit_failure() {
     echo ""
     echo "Installation has failed. A log file containing troubleshooting information is located at:"
     echo "$LOGFILE"
-    echo "If opening a GitHub issue for assistance, please attach the contents of this file."
+    echo "If opening a GitHub issue for assistance, please attach the contents of this file. however:"
+    echo "${LIGHTRED}Please remember to remove any API/sharing keys, UUIDs, usernames/passwords, etc before posting!${NOCOLOR}"
     echo ""
     kill -s TERM $TOP_PID
 }
@@ -356,7 +357,7 @@ function install_docker_compose() {
     fi
 }
 
-function yes_or_no_input() {
+function input_yes_or_no() {
     # Get yes or no input from user
     # $1 = user prompt
     # $2 = previous value (optional)
@@ -383,6 +384,142 @@ function yes_or_no_input() {
                 ;;
         esac
     done
+}
+
+function input_lat_long() {
+    # Get lat/long input from user
+    # $1 = previous lat (optional)
+    # $2 = previous long (optional)
+    # -----------------    
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "${LIGHTGRAY}Please enter your feeder's latitude (to 5 decimal places): "
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: $1) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}.\d{3,5}$' > /dev/null 2>&1; then
+            valid_input=1
+        else
+            echo -e "${YELLOW}Please enter a valid latitude!${NOCOLOR}"
+        fi
+    done
+    echo "FEEDER_LAT=$USER_INPUT" >> "$PREFSFILE"
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "${LIGHTGRAY}Please enter your feeder's longitude (to 5 decimal places): "
+        if [[ -n "$2" ]]; then
+            echo -n "(previously: $2) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}.\d{3,5}$' > /dev/null 2>&1; then
+            valid_input=1
+        else
+            echo -e "${YELLOW}Please enter a valid longitude!${NOCOLOR}"
+        fi
+    done
+    echo "FEEDER_LONG=$USER_INPUT" >> "$PREFSFILE"
+}
+
+function input_altitude() {
+    # Get altitude input from user
+    # $1 = previous alt m (optional)
+    # $2 = previous alt ft (optional)
+    # -----------------    
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "${LIGHTGRAY}Please enter your feeder's altitude, suffixed with either 'm' for metres or 'ft' for feet: "
+        if [[ -n "$1" ]]; then
+            if [[ -n "$2" ]]; then
+                echo -n "(previously: ${1}m / ${2}ft) "
+            fi
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        # if answer was given in m...
+        if echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*m$' > /dev/null 2>&1; then
+            valid_input=1
+            # convert m to ft
+            bc_expression="scale=3; $USER_OUTPUT * 3.28084"
+            alt_m="$USER_OUTPUT"
+            alt_ft="$(echo $bc_expression | bc -l)"
+
+        # if answer was given in ft...
+        if echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*ft$' > /dev/null 2>&1; then
+            # convert ft to m
+            valid_input=1
+            bc_expression="scale=3; $USER_OUTPUT * 0.3048"
+            alt_m="$(echo $bc_expression | bc -l)"
+            alt_ft="$USER_OUTPUT"
+
+        # if wrong answer was given...
+        else
+            echo -e "${YELLOW}Please enter a valid altitude!${NOCOLOR}"
+        fi
+    done
+    echo "FEEDER_ALT_M=$alt_m" >> "$PREFSFILE"
+    echo "FEEDER_ALT_FT=$alt_ft" >> "$PREFSFILE"
+}
+
+function input_adsbx_details() {
+    # Get adsbx input from user
+    # $1 = previous uuid (optional)
+    # $2 = previous sitename (optional)
+    # -----------------    
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter your ADSB Exchange UUID. If you don't have one, just hit enter and a new UUID will be generated: "
+        if [[ -n "$1" ]]; then
+            if [[ -n "$2" ]]; then
+                echo -n "(previously: ${1}) "
+            fi
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        if [[ -n "$USER_OUTPUT" ]]; then
+            logger "input_adsbx_details" "Generating new ADSB Exchange UUID..." "$LIGHTBLUE"
+            if adsbx_uuid=$(docker run --rm -it --entrypoint uuidgen mikenye/adsbexchange -t 2>/dev/null); then
+                logger "input_adsbx_details" "New ADSB Exchange UUID generated OK: $adsbx_uuid" "$LIGHTBLUE"
+            else
+                logger "input_adsbx_details" "ERROR: Problem generating new ADSB Exchange UUID :-(" "$LIGHTRED"
+                exit_failure
+            fi
+        else
+            adsbx_uuid="$USER_OUTPUT"
+        fi
+    done
+
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter a unique name for the ADSB Exchange feeder: "
+        if [[ -n "$1" ]]; then
+            if [[ -n "$2" ]]; then
+                echo -n "(previously: ${2}) "
+            fi
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        NOSPACENAME="$(echo -n -e "${USER_OUTPUT}" | tr -c '[a-zA-Z0-9]_\- ' '_')"
+        adsbx_sitename="${NOSPACENAME}_$((RANDOM % 90 + 10))"
+        logger "Your ADSB Exchange site name will be set to: $adsbx_sitename" "$LIGHTBLUE"
+        valid_input=1
+    done
+
+    echo "ADSBX_UUID=$adsbx_uuid" >> "$PREFSFILE"
+    echo "ADSBX_SITENAME=$adsbx_sitename" >> "$PREFSFILE"
 }
 
 function find_rtlsdr_devices() {
@@ -442,9 +579,16 @@ function show_preferences() {
     echo -e "${WHITE}===== Configured Preferences =====${NOCOLOR}"
     echo ""
 
+    # Feeder position
+    echo " * Feeder latitude is: $FEEDER_LAT"
+    echo " * Feeder longitude is: $FEEDER_LONG"
+    echo " * Feeder altitude is: ${FEEDER_ALT_M}/${FEEDER_ALT_FT}"
+
     # ADSBx
     if [[ "$FEED_ADSBX" == "y" ]]; then
         echo " * ADSB-Exchange docker container will be created and configured"
+        echo "     - UUID: $ADSBX_UUID"
+        echo "     - Site name: $ADSBX_SITENAME"
     else
         echo " * No feeding to ADSB-Exchange"
     fi
@@ -486,11 +630,11 @@ function show_preferences() {
     echo ""
 }
 
-function get_preferences() {
+function get_rtlsdr_preferences() {
     echo ""
     echo -e "${WHITE}===== RTL-SDR Preferences =====${NOCOLOR}"
     echo ""
-    if yes_or_no_input "Do you wish to use an RTL-SDR device attached to this machine to receive 1090MHz traffic?"; then
+    if input_yes_or_no "Do you wish to use an RTL-SDR device attached to this machine to receive ADS-B ES (1090MHz) traffic?"; then
 
         # Look for RTL-SDR radios
         find_rtlsdr_devices
@@ -511,76 +655,91 @@ function get_preferences() {
         #   "Found RTL-SDR with serial number '00000978'. Will assume this device should be used for ADS-B UAT (978MHz) reception."
         # press any key to continue
 
-        only_one_radio_attached=0
-        while [[ "$only_one_radio_attached" -eq 0 ]]; do
+        logger "TODO!" "NEED TO DO RTL-SDR SERIAL STUFF!!!"
 
-            # Ask the user to unplug all but one RTL-SDR
-            echo ""
-            echo -e "${YELLOW}Please ensure the only RTL-SDR device connected to this machine is the one to be used for ADS-B (1090MHz) reception!${NOCOLOR}"
-            echo -e "${YELLOW}Disconnect all other RTL-SDR devices!${NOCOLOR}"
-            read -p "Press any key to continue" -sn1
-            echo ""
+        # only_one_radio_attached=0
+        # while [[ "$only_one_radio_attached" -eq 0 ]]; do
 
-            # Look for RTL-SDR radios
-            find_rtlsdr_devices
-            echo -n "Found ${#RTLSDR_DEVICES[@]} "
-            if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
-                echo "radios."
-            elif [[ "${#RTLSDR_DEVICES[@]}" -eq 0 ]]; then
-                echo "radios."
-            else
-                echo "radio."
-            fi
+        #     # Ask the user to unplug all but one RTL-SDR
+        #     echo ""
+        #     echo -e "${YELLOW}Please ensure the only RTL-SDR device connected to this machine is the one to be used for ADS-B ES (1090MHz) reception!${NOCOLOR}"
+        #     echo -e "${YELLOW}Disconnect all other RTL-SDR devices!${NOCOLOR}"
+        #     read -p "Press any key to continue" -sn1
+        #     echo ""
 
-            # If more than one radio is detected, then ask the user to unplug all other radios except the one they wish to use for ADSB 1090MHz reception.
-            if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
-                echo ""
-                logger "get_preferences" "More than one RTL-SDR device was found. Please un-plug all RTL-SDR devices, except the device you wish to use for ADS-B (1090MHz) reception." "$LIGHTRED"
-                echo ""
-            elif [[ "${#RTLSDR_DEVICES[@]}" -eq 1 ]]; then
-                only_one_radio_attached=1
-            else
-                logger "get_preferences" "No RTL-SDR devices found. Please connect the RTL-SDR device that will be used for ADS-B (1090MHz) reception."
-            fi
-        done
+        #     # Look for RTL-SDR radios
+        #     find_rtlsdr_devices
+        #     echo -n "Found ${#RTLSDR_DEVICES[@]} "
+        #     if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
+        #         echo "radios."
+        #     elif [[ "${#RTLSDR_DEVICES[@]}" -eq 0 ]]; then
+        #         echo "radios."
+        #     else
+        #         echo "radio."
+        #     fi
 
-        # If only one radio present, check serial. If not 00001090 then change to this
-        RTLSDR_ADSB_
+        #     # If more than one radio is detected, then ask the user to unplug all other radios except the one they wish to use for ADSB 1090MHz reception.
+        #     if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
+        #         echo ""
+        #         logger "get_preferences" "More than one RTL-SDR device was found. Please un-plug all RTL-SDR devices, except the device you wish to use for ADS-B ES (1090MHz) reception." "$LIGHTRED"
+        #         echo ""
+        #     elif [[ "${#RTLSDR_DEVICES[@]}" -eq 1 ]]; then
+        #         only_one_radio_attached=1
+        #     else
+        #         logger "get_preferences" "No RTL-SDR devices found. Please connect the RTL-SDR device that will be used for ADS-B ES (1090MHz) reception."
+        #     fi
+        # done
+
+        # # If only one radio present, check serial. If not 00001090 then change to this
+        # RTLSDR_ADSB_
 
     fi
+}
 
+function get_feeder_preferences() {
     echo ""
     echo -e "${WHITE}===== Feeder Preferences =====${NOCOLOR}"
     echo ""
     # Delete prefs file if it exists
     rm "$PREFSFILE" > /dev/null 2>&1 || true
     touch "$PREFSFILE"
-    if yes_or_no_input "Do you want to feed ADS-B Exchange (adsbexchange.com)?" "$FEED_ADSBX"; then
+
+    # Get feeder lat/long
+    input_lat_long "$FEEDER_LAT" "$FEEDER_LONG"
+
+    # Get feeder alt
+    input_altitude "$FEEDER_ALT_M" "$FEEDER_ALT_FT"
+
+
+    if input_yes_or_no "Do you want to feed ADS-B Exchange (adsbexchange.com)?" "$FEED_ADSBX"; then
         echo "FEED_ADSBX=\"y\"" >> "$PREFSFILE"
+        input_adsbx_details
     else
         echo "FEED_ADSBX=\"n\"" >> "$PREFSFILE"
+        echo "ADSBX_UUID=" >> "$PREFSFILE"
+        echo "ADSBX_SITENAME=" >> "$PREFSFILE"
     fi
-    if yes_or_no_input "Do you want to feed Flightradar24 (flightradar24.com)?" "$FEED_FLIGHTRADAR24"; then
+    if input_yes_or_no "Do you want to feed Flightradar24 (flightradar24.com)?" "$FEED_FLIGHTRADAR24"; then
         echo "FEED_FLIGHTRADAR24=\"y\"" >> "$PREFSFILE"
     else
         echo "FEED_FLIGHTRADAR24=\"n\"" >> "$PREFSFILE"
     fi
-    if yes_or_no_input "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
+    if input_yes_or_no "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
         echo "FEED_OPENSKY=\"y\"" >> "$PREFSFILE"
     else
         echo "FEED_OPENSKY=\"n\"" >> "$PREFSFILE"
     fi
-    if yes_or_no_input "Do you want to feed FlightAware (flightaware.com)?" "$FEED_FLIGHTAWARE"; then
+    if input_yes_or_no "Do you want to feed FlightAware (flightaware.com)?" "$FEED_FLIGHTAWARE"; then
         echo "FEED_FLIGHTAWARE=\"y\"" >> "$PREFSFILE"
     else
         echo "FEED_FLIGHTAWARE=\"n\"" >> "$PREFSFILE"
     fi
-    if yes_or_no_input "Do you want to feed PlaneFinder (planefinder.net)?" "$FEED_PLANEFINDER"; then
+    if input_yes_or_no "Do you want to feed PlaneFinder (planefinder.net)?" "$FEED_PLANEFINDER"; then
         echo "FEED_PLANEFINDER=\"y\"" >> "$PREFSFILE"
     else
         echo "FEED_PLANEFINDER=\"n\"" >> "$PREFSFILE"
     fi
-    if yes_or_no_input "Do you want to feed AirNav RadarBox (radarbox.com)?" "$FEED_RADARBOX"; then
+    if input_yes_or_no "Do you want to feed AirNav RadarBox (radarbox.com)?" "$FEED_RADARBOX"; then
         echo "FEED_RADARBOX=\"y\"" >> "$PREFSFILE"
     else
         echo "FEED_RADARBOX=\"n\"" >> "$PREFSFILE"
@@ -594,7 +753,7 @@ function unload_rtlsdr_kernel_modules() {
     echo ""
     for modulename in "${RTLSDR_MODULES_TO_BLACKLIST[@]}"; do
         if lsmod | grep -i "$modulename" > /dev/null 2>&1; then
-            if yes_or_no_input "Module '$modulename' must be unloaded to continue. Is this OK?"; then
+            if input_yes_or_no "Module '$modulename' must be unloaded to continue. Is this OK?"; then
                 if rmmod "$modulename"; then
                     logger "unload_rtlsdr_kernel_modules" "Module '$modulename' unloaded successfully!" "$LIGHTGREEN"
                 else
@@ -629,6 +788,7 @@ function set_rtlsdr_serial_to_00001090() {
 ##### MAIN SCRIPT #####
 
 # Initialise log file
+rm "$LOGFILE" > /dev/null 2>&1 || true
 logger_logfile_only "main" "Script started"
 #shellcheck disable=SC2128,SC1102
 command_line="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
@@ -646,6 +806,7 @@ asciiplane
 echo ""
 echo "Welcome to the ADS-B Docker Easy Install Script"
 echo ""
+sleep 3
 
 # Get git to download list of supported rtl-sdr radios
 if ! is_git_installed; then
@@ -656,7 +817,7 @@ if ! is_git_installed; then
     echo " * Retrieving the supported list of RTL-SDR devices from the rtl-sdr repository"
     echo " * Cloning the 'docker-compose' repository to determine the latest version"
     echo ""
-    if ! yes_or_no_input "May this script install the 'git' utility?"; then
+    if ! input_yes_or_no "May this script install the 'git' utility?"; then
         echo "Not proceeding."
         echo ""
         exit 1
@@ -676,8 +837,9 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
         #shellcheck disable=SC1090
         source "$PREFSFILE"
         show_preferences
-        if yes_or_no_input "Do you want to change these preferences?"; then
-            get_preferences
+        if input_yes_or_no "Do you want to change these preferences?"; then
+            get_rtlsdr_preferences
+            get_feeder_preferences
         else
             break
         fi
@@ -693,7 +855,7 @@ done
 echo ""
 echo -e "${WHITE}===== FINAL CONFIRMATION =====${NOCOLOR}"
 echo ""
-if ! yes_or_no_input "Are you sure you want to proceed?"; then
+if ! input_yes_or_no "Are you sure you want to proceed?"; then
     echo "Not proceeding."
     echo ""
     exit 1
