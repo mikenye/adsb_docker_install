@@ -197,7 +197,7 @@ function update_docker() {
         logger_logfile_only "install_docker" "Docker components DO NOT require an update"
     fi
 
-function install_docker() {}
+function install_docker() {
 
     # Docker is not installed
     logger "install_docker" "Installing docker..." "$LIGHTBLUE"
