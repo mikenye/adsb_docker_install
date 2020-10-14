@@ -111,6 +111,7 @@ function write_fr24_expectscript() {
         echo 'expect "+ Your radar id is"'
         echo 'expect "Saving settings to /etc/fr24feed.ini...OK"'
     } > "$FILE_FR24SIGNUP_EXPECT"
+}
 
 function asciiplane() {
 
