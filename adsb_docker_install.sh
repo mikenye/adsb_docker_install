@@ -161,40 +161,40 @@ function is_binary_installed() {
 function update_docker() {
 
     # Docker is already installed
-    logger "install_docker" "Docker is already installed!" "$LIGHTGREEN"
+    logger "update_docker" "Docker is already installed!" "$LIGHTGREEN"
 
     # Check to see if docker requires an update
-    logger_logfile_only "install_docker" "Checking to see if docker components require an update"
+    logger_logfile_only "update_docker" "Checking to see if docker components require an update"
     if [[ "$(apt-get -u --just-print upgrade | grep -c docker-ce)" -gt "0" ]]; then
-        logger_logfile_only "install_docker" "Docker components DO require an update"
+        logger_logfile_only "update_docker" "Docker components DO require an update"
 
         # Check if containers are running, if not, attempt to upgrade to latest version
-        logger_logfile_only "install_docker" "Checking if containers are running"
+        logger_logfile_only "update_docker" "Checking if containers are running"
         if [[ "$(docker ps -q)" -gt "0" ]]; then
             
             # Containers running, don't update
-            logger "install_docker" "WARNING: Docker components require an update, but you have running containers. Not updating docker, you will need to do this manually." "$YELLOW"
+            logger "update_docker" "WARNING: Docker components require an update, but you have running containers. Not updating docker, you will need to do this manually." "$YELLOW"
 
         else
 
             # Containers not running, do update
-            logger "install_docker" "Docker components require an update. Performing update..." "$LIGHTBLUE"
+            logger "update_docker" "Docker components require an update. Performing update..." "$LIGHTBLUE"
             if apt-get upgrade -y docker-ce >> "$LOGFILE" 2>&1; then
 
                 # Docker upgraded OK!
-                logger "install_docker" "Docker upgraded successfully!" "$LIGHTGREEN"
+                logger "update_docker" "Docker upgraded successfully!" "$LIGHTGREEN"
 
             else
 
                 # Docker upgrade failed
-                logger "install_docker" "ERROR: Problem updating docker :-(" "$LIGHTRED"
+                logger "update_docker" "ERROR: Problem updating docker :-(" "$LIGHTRED"
                 exit_failure
 
             fi
         fi
 
     else
-        logger_logfile_only "install_docker" "Docker components DO NOT require an update"
+        logger_logfile_only "update_docker" "Docker components DO NOT require an update"
     fi
 }
 
@@ -227,34 +227,30 @@ function update_docker_compose() {
     local docker_compose_version_latest
 
     # get latest version of docker-compose
-    logger "install_docker_compose" "Querying for latest version of docker-compose..." "$LIGHTBLUE"
+    logger "update_docker_compose" "Querying for latest version of docker-compose..." "$LIGHTBLUE"
 
     # clone docker-compose repo
-    logger_logfile_only "install_docker_compose" "Attempting clone of docker-compose git repo"
+    logger_logfile_only "update_docker_compose" "Attempting clone of docker-compose git repo"
     if git clone "$REPO_URL_DOCKER_COMPOSE" "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
         # do nothing
         :
     else
-        logger "install_docker_compose" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
+        logger "update_docker_compose" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
         exit_failure
     fi
     # get latest tag version from cloned repo
-    logger_logfile_only "install_docker_compose" "Attempting to get latest tag from cloned docker-compose git repo"
+    logger_logfile_only "update_docker_compose" "Attempting to get latest tag from cloned docker-compose git repo"
     pushd "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1 || exit_failure
     if docker_compose_version_latest=$(git tag --sort="-creatordate" | head -1); then
         # do nothing
         :
     else
-        logger "install_docker_compose" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
+        logger "update_docker_compose" "ERROR: Problem getting latest docker-compose version :-(" "$LIGHTRED"
         exit_failure
     fi
     popd >> "$LOGFILE" 2>&1 || exit_failure
     # clean up temp downloaded docker_compose repo
     rm -r "$REPO_PATH_DOCKER_COMPOSE"
-
-}
-
-function update_docker_compose() {
 
     # docker_compose is already installed
     logger_logfile_only "install_docker_compose" "docker-compose is already installed, attempting to get version information:"
