@@ -844,7 +844,8 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
             break
         fi
     else
-        get_preferences
+        get_rtlsdr_preferences
+        get_feeder_preferences
     fi
 done
 
