@@ -6,22 +6,13 @@ export TOP_PID=$$
 
 ##### DEFINE GLOBALS #####
 
-# Colors
+# Bash CLI Colors
 NOCOLOR='\033[0m'
-#RED='\033[0;31m'
-#GREEN='\033[0;32m'
-#ORANGE='\033[0;33m'
-#BLUE='\033[0;34m'
-#PURPLE='\033[0;35m'
-#CYAN='\033[0;36m'
 LIGHTGRAY='\033[0;37m'
-#DARKGRAY='\033[1;30m'
 LIGHTRED='\033[1;31m'
 LIGHTGREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 LIGHTBLUE='\033[1;34m'
-#LIGHTPURPLE='\033[1;35m'
-#LIGHTCYAN='\033[1;36m'
 WHITE='\033[1;37m'
 
 # File/path locations
@@ -470,7 +461,7 @@ function input_altitude() {
         if echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*m$' > /dev/null 2>&1; then
             valid_input=1
             # convert m to ft
-            bc_expression="scale=3; $USER_OUTPUT * 3.28084"
+            bc_expression="scale=3; ${USER_OUTPUT%m} | sed * 3.28084"
             alt_m="$USER_OUTPUT"
             alt_ft="$(echo $bc_expression | bc -l)"
 
@@ -478,7 +469,7 @@ function input_altitude() {
         elif echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*ft$' > /dev/null 2>&1; then
             # convert ft to m
             valid_input=1
-            bc_expression="scale=3; $USER_OUTPUT * 0.3048"
+            bc_expression="scale=3; ${USER_OUTPUT%ft} * 0.3048"
             alt_m="$(echo $bc_expression | bc -l)"
             alt_ft="$USER_OUTPUT"
 
