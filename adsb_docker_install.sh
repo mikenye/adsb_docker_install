@@ -115,10 +115,10 @@ function update_apt_repos() {
 
 function is_git_installed() {
     # Check if git is installed
-    logger_logfile_only "install_git" "Checking if git is installed"
+    logger_logfile_only "is_git_installed" "Checking if git is installed"
     if which git >> "$LOGFILE" 2>&1; then
         # git is already installed
-        logger "install_git" "git is already installed!" "$LIGHTGREEN"
+        logger "is_git_installed" "git is already installed!" "$LIGHTGREEN"
     else
         return 1
     fi
@@ -128,9 +128,31 @@ function install_git() {
     logger "install_git" "Installing git..." "$LIGHTBLUE"
     # Attempt download of docker script
     if apt-get install -y git >> "$LOGFILE" 2>&1; then
-        logger "install_docker" "git installed successfully!" "$LIGHTGREEN"
+        logger "install_git" "git installed successfully!" "$LIGHTGREEN"
     else
         logger "install_git" "ERROR: Could not install git via apt-get :-(" "$LIGHTRED"
+        exit_failure
+    fi
+}
+
+function is_bc_installed() {
+    # Check if bc is installed
+    logger_logfile_only "is_bc_installed" "Checking if bc is installed"
+    if which git >> "$LOGFILE" 2>&1; then
+        # bc is already installed
+        logger "is_bc_installed" "bc is already installed!" "$LIGHTGREEN"
+    else
+        return 1
+    fi
+}
+
+function install_bc() {
+    logger "install_bc" "Installing bc..." "$LIGHTBLUE"
+    # Attempt download of docker script
+    if apt-get install -y bc >> "$LOGFILE" 2>&1; then
+        logger "install_bc" "bc installed successfully!" "$LIGHTGREEN"
+    else
+        logger "install_bc" "ERROR: Could not install bc via apt-get :-(" "$LIGHTRED"
         exit_failure
     fi
 }
@@ -516,7 +538,7 @@ function input_adsbx_details() {
 
         NOSPACENAME="$(echo -n -e "${USER_OUTPUT}" | tr -c '[a-zA-Z0-9]_\- ' '_')"
         adsbx_sitename="${NOSPACENAME}_$((RANDOM % 90 + 10))"
-        logger "Your ADSB Exchange site name will be set to: $adsbx_sitename" "$LIGHTBLUE"
+        logger "input_adsbx_details" "Your ADSB Exchange site name will be set to: $adsbx_sitename" "$LIGHTBLUE"
         valid_input=1
     done
 
@@ -815,7 +837,7 @@ if ! is_git_installed; then
     echo ""
     echo -e "${WHITE}===== Installing 'git' =====${NOCOLOR}"
     echo ""
-    echo "This script needs to install the 'git' utility, which is used for:"
+    echo "This script needs to install the 'git' (a source code management util), which is used for:"
     echo " * Retrieving the supported list of RTL-SDR devices from the rtl-sdr repository"
     echo " * Cloning the 'docker-compose' repository to determine the latest version"
     echo ""
@@ -825,6 +847,24 @@ if ! is_git_installed; then
         exit 1
     else
         install_git
+    fi
+    echo ""
+fi
+
+# Get git to download list of supported rtl-sdr radios
+if ! is_bc_installed; then
+    echo ""
+    echo -e "${WHITE}===== Installing 'bc' =====${NOCOLOR}"
+    echo ""
+    echo "This script needs to install the 'bc' utility (a CLI calculator), which is used for:"
+    echo " * Converting between metric and imperial measurements automatically"
+    echo ""
+    if ! input_yes_or_no "May this script install the 'bc' utility?"; then
+        echo "Not proceeding."
+        echo ""
+        exit 1
+    else
+        install_bc
     fi
     echo ""
 fi
