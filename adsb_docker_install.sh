@@ -35,6 +35,9 @@ RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832_sdr)
 RTLSDR_MODULES_TO_BLACKLIST+=(dvb_usb_rtl28xxu)
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832)
 
+# Name of temp docker container for fr24 sign up
+FR24_SIGNUP_CONTAINER_NAME="de749c96-0e1f-11eb-b270-1c1b0d925d3c"
+
 ##### DEFINE FUNCTIONS #####
 
 function logger() {
@@ -64,12 +67,12 @@ function exit_failure() {
     echo "Installation has failed. A log file containing troubleshooting information is located at:"
     echo "$LOGFILE"
     echo "If opening a GitHub issue for assistance, be prepared to send this file in. however:"
-    echo "${LIGHTRED}Please remember to remove any:"
+    echo -e "${LIGHTRED}Please remember to remove any:"
     echo "  - email addresses"
     echo "  - usernames/passwords"
     echo "  - API keys / sharing keys / UUIDs"
     echo "  - your exact location in lat/long"
-    echo "...and any other sensitive data before posting in a public forum!${NOCOLOR}"
+    echo -e "...and any other sensitive data before posting in a public forum!${NOCOLOR}"
     echo ""
     kill -s TERM $TOP_PID
 }
@@ -79,7 +82,7 @@ function write_fr24_expectscript() {
     {
         echo '#!/usr/bin/env expect'
         echo 'set timeout 120'
-        echo 'spawn docker run --name=fr24signup -it --entrypoint fr24feed mikenye/fr24feed --signup'
+        echo "spawn docker run --name=$FR24_SIGNUP_CONTAINER_NAME -it --entrypoint fr24feed mikenye/fr24feed --signup"
         echo 'expect "Step 1.1 - Enter your email address (username@domain.tld)"'
         echo 'expect "$:"'
         echo "send \"${FR24_EMAIL}\r\""
@@ -575,6 +578,7 @@ function input_fr24_details() {
             logger_logfile_only "input_fr24_details" "Writing out expect script..."
             write_fr24_expectscript
             logger_logfile_only "input_fr24_details" "Running expect script..."
+            docker rm "$FR24_SIGNUP_CONTAINER_NAME" >> "$LOGFILE" 2>&1
             if expect "$FILE_FR24SIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
                 logger_logfile_only "input_fr24_details" "Expect script finished OK"
             else
@@ -584,8 +588,8 @@ function input_fr24_details() {
             
             # try to get sharing key
             regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
-            if docker logs fr24signup | grep -P "$regex_sharing_key" >> "$LOGFILE" 2>&1; then
-                sharing_key=$(docker logs fr24signup | \
+            if docker logs "$FR24_SIGNUP_CONTAINER_NAME" | grep -P "$regex_sharing_key" >> "$LOGFILE" 2>&1; then
+                sharing_key=$(docker logs "$FR24_SIGNUP_CONTAINER_NAME" | \
                 grep -P "$regex_sharing_key" | \
                 sed -r "s/$regex_sharing_key/\1/")
                 echo "FR24_KEY=$sharing_key" >> "$PREFSFILE"
@@ -597,8 +601,8 @@ function input_fr24_details() {
 
             # try to get radar ID
             regex_radar_id='^\+ Your radar id is ([\w\-]+), please include it in all email communication with us\.'
-            if docker logs fr24signup | grep -P "$regex_radar_id" >> "$LOGFILE" 2>&1; then
-                radar_id=$(docker logs fr24signup | \
+            if docker logs "$FR24_SIGNUP_CONTAINER_NAME" | grep -P "$regex_radar_id" >> "$LOGFILE" 2>&1; then
+                radar_id=$(docker logs "$FR24_SIGNUP_CONTAINER_NAME" | \
                 grep -P "$regex_radar_id" | \
                 sed -r "s/$regex_radar_id/\1/")
                 echo "FR24_RADAR_ID=$radar_id" >> "$PREFSFILE"
@@ -607,6 +611,9 @@ function input_fr24_details() {
                 logger "input_fr24_details" "ERROR: Could not find flightradar24 radar ID :-(" "$LIGHTRED"
                 exit_failure
             fi
+
+            # clean up temp container
+            docker rm "$FR24_SIGNUP_CONTAINER_NAME" >> "$LOGFILE" 2>&1
         else
             valid_input=1
         fi
