@@ -420,7 +420,7 @@ function input_lat_long() {
             echo -e "${YELLOW}Please enter a valid latitude!${NOCOLOR}"
         fi
     done
-    echo "FEEDER_LAT=$USER_INPUT" >> "$PREFSFILE"
+    echo "FEEDER_LAT=$USER_OUTPUT" >> "$PREFSFILE"
     valid_input=0
     while [[ "$valid_input" -ne 1 ]]; do
         echo -ne "${LIGHTGRAY}Please enter your feeder's longitude (to 5 decimal places): "
@@ -436,7 +436,7 @@ function input_lat_long() {
             echo -e "${YELLOW}Please enter a valid longitude!${NOCOLOR}"
         fi
     done
-    echo "FEEDER_LONG=$USER_INPUT" >> "$PREFSFILE"
+    echo "FEEDER_LONG=$USER_OUTPUT" >> "$PREFSFILE"
 }
 
 function input_altitude() {
@@ -454,9 +454,6 @@ function input_altitude() {
             fi
         fi
         echo -ne "${NOCOLOR}"
-
-        set -x
-
         read -r USER_OUTPUT
         echo ""
 
@@ -824,7 +821,7 @@ asciiplane
 echo ""
 echo "Welcome to the ADS-B Docker Easy Install Script"
 echo ""
-sleep 3
+update_apt_repos
 
 # Get git to download list of supported rtl-sdr radios
 if ! is_git_installed; then
@@ -901,10 +898,6 @@ echo ""
 
 # Install docker
 install_docker
-
-# Install git - requirement for docker-compose (to get latest version)
-update_apt_repos
-install_git
 
 # Install docker-compose
 install_docker_compose
