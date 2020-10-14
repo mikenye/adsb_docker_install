@@ -358,9 +358,6 @@ function yes_or_no_input() {
 
 function find_rtlsdr_devices() {
 
-    echo -e "${WHITE}===== Looking for RTL-SDR Devices =====${NOCOLOR}"
-    echo ""
-
     # clone rtl-sdr repo
     logger_logfile_only "find_rtlsdr_devices" "Attempting to clone RTL-SDR repo..."
     if git clone --depth 1 "$REPO_URL_RTLSDR" "$REPO_PATH_RTLSDR" >> "$LOGFILE" 2>&1; then
@@ -462,7 +459,46 @@ function show_preferences() {
 
 function get_preferences() {
     echo ""
-    echo -e "${WHITE}===== Input Preferences =====${NOCOLOR}"
+    echo -e "${WHITE}===== RTL-SDR Preferences =====${NOCOLOR}"
+    echo ""
+    if yes_or_no_input "Do you wish to use an RTL-SDR device attached to this machine to receive 1090MHz traffic?"; then
+
+        only_one_radio_attached=0
+        while [[ "$only_one_radio_attached" -eq 0 ]]; do
+
+            # Ask the user to unplug all but one RTL-SDR
+            echo -e "${YELLOW}Please ensure the only RTL-SDR device connected to this machine is the one to be used for 1090MHz!${NOCOLOR}"
+            echo -e "${YELLOW}Disconnect all other RTL-SDR devices!${NOCOLOR}"
+            read -p "Press any key to continue" -sn1
+
+            # Look for RTL-SDR radios
+            find_rtlsdr_devices
+            echo -n "Found ${#RTLSDR_DEVICES[@]} "
+            if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
+                echo "radios."
+            elif [[ "${#RTLSDR_DEVICES[@]}" -eq 0 ]]; then
+                echo "radios."
+            else
+                echo "radio."
+            fi  
+        
+            # If more than one radio is detected, then ask the user to unplug all other radios except the one they wish to use for ADSB 1090MHz reception.
+            if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
+                echo ""
+                logger "get_preferences" "More than one RTL-SDR device was found. Please un-plug all RTL-SDR devices, except the device you wish to use for ADS-B (1090MHz) reception." "$LIGHTRED"
+                echo ""
+            elif [[ "${#RTLSDR_DEVICES[@]}" -eq 1 ]]; then
+                only_one_radio_attached=1
+            fi
+        done
+
+        # If only one radio present, check serial. If not 00001090 then change to this
+        RTLSDR_ADSB_
+        
+    fi
+
+    echo ""
+    echo -e "${WHITE}===== Feeder Preferences =====${NOCOLOR}"
     # Delete prefs file if it exists
     rm "$PREFSFILE" > /dev/null 2>&1 || true
     touch "$PREFSFILE"
@@ -569,28 +605,6 @@ fi
 
 # Unload and blacklist rtlsdr kernel modules
 unload_rtlsdr_kernel_modules
-
-# Look for RTL-SDR radios
-find_rtlsdr_devices
-echo -n "Found ${#RTLSDR_DEVICES[@]} "
-if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
-    echo "radios."
-elif [[ "${#RTLSDR_DEVICES[@]}" -eq 0 ]]; then
-    echo "radios."
-else
-    echo "radio."
-fi
-
-# If more than one radio is detected, then ask the user to unplug all other radios except the one they wish to use for ADSB 1090MHz reception.
-if [[ "${#RTLSDR_DEVICES[@]}" -gt 1 ]]; then
-    echo ""
-    echo "More than one RTL-SDR device was found. Please un-plug all RTL-SDR devices, except the device you wish to use for ADS-B (1090MHz) reception."
-    echo ""
-    exit 1
-fi
-
-# If only one radio present, check serial. If not 00001090 then change to this
-RTLSDR_ADSB_
 
 # Get/Set preferences
 confirm_prefs=0
