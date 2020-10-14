@@ -675,7 +675,7 @@ function show_preferences() {
     # Feeder position
     echo " * Feeder latitude is: $FEEDER_LAT"
     echo " * Feeder longitude is: $FEEDER_LONG"
-    echo " * Feeder altitude is: ${FEEDER_ALT_M}/${FEEDER_ALT_FT}"
+    echo " * Feeder altitude is: ${FEEDER_ALT_M}m / ${FEEDER_ALT_FT}ft"
 
     # ADSBx
     if [[ "$FEED_ADSBX" == "y" ]]; then
@@ -814,8 +814,11 @@ function get_feeder_preferences() {
     fi
     if input_yes_or_no "Do you want to feed Flightradar24 (flightradar24.com)?" "$FEED_FLIGHTRADAR24"; then
         echo "FEED_FLIGHTRADAR24=\"y\"" >> "$PREFSFILE"
+        input_fr24_details
     else
         echo "FEED_FLIGHTRADAR24=\"n\"" >> "$PREFSFILE"
+        echo "FR24_EMAIL=" >> "$PREFSFILE"
+        echo "FR24_KEY=" >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
         echo "FEED_OPENSKY=\"y\"" >> "$PREFSFILE"
