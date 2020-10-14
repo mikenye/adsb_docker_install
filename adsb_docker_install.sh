@@ -196,6 +196,7 @@ function update_docker() {
     else
         logger_logfile_only "install_docker" "Docker components DO NOT require an update"
     fi
+}
 
 function install_docker() {
 
