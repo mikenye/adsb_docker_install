@@ -222,9 +222,9 @@ function write_rbfeeder_expectscript() {
 }
 
 function welcome_msg() {
-
+echo -ne "${WHITE}"
 cat << "EOM"
-${WHITE}
+
   __                  
   \  \     _ _            _    ____  ____        ____
    \**\ ___\/ \          / \  |  _ \/ ___|      | __ )
@@ -233,8 +233,9 @@ ${WHITE}
       \__\            /_/   \_\____/|____/      |____/
 
 Welcome to the ADS-B Docker Easy Install Script
-${NOCOLOR}
+
 EOM
+echo -ne "${NOCOLOR}"
 }
 
 function update_apt_repos() {
