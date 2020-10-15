@@ -43,21 +43,8 @@ REPO_PATH_RTLSDR="$(mktemp -d --suffix=".adsb_docker_install.REPO_PATH_RTLSDR")"
 # Temp container IDs
 CONTAINER_ID_FR24=
 CONTAINER_ID_PIAWARE=
-# NOTE: If more temp containers are made, make sure they are cleaned up
+# NOTE: If more temp containers are made, add to cleanup function below
 # NOTE: Also make sure they are started with '--rm' so they're deleted when killed
-
-# Cleanup function run on script exit (via trap)
-function cleanup() {
-    # Cleanup of temp files/dirs
-    rm -r "$FILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
-    rm -r "$FILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$REPO_PATH_DOCKER_COMPOSE" > /dev/null 2>&1 || true
-    rm -r "$REPO_PATH_RTLSDR" > /dev/null 2>&1 || true
-    # Cleanup of temp containers
-    docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
-    docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
-}
 
 # Repository URLs
 REPO_URL_DOCKER_COMPOSE="https://github.com/docker/compose.git"
@@ -78,7 +65,29 @@ ADSBX_SITENAME=
 PIAWARE_FEEDER_ID=
 
 
+##### CLEAN-UP FUNCTION #####
+
+
+# Cleanup function run on script exit (via trap)
+function cleanup() {
+    # NOTE: everything in this script should end with ' > /dev/null 2>&1 || true'
+    #       this ensures any errors during cleanup are suppressed
+
+    # Cleanup of temp files/dirs
+    rm -r "$FILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
+    rm -r "$FILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$REPO_PATH_DOCKER_COMPOSE" > /dev/null 2>&1 || true
+    rm -r "$REPO_PATH_RTLSDR" > /dev/null 2>&1 || true
+    
+    # Cleanup of temp containers
+    docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
+    docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
+}
+
+
 ##### DEFINE FUNCTIONS #####
+
 
 function logger() {
     # Logs messages to the console
