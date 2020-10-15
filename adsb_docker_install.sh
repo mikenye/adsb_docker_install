@@ -46,9 +46,10 @@ CONTAINER_ID_PIAWARE=
 # NOTE: If more temp containers are made, add to cleanup function below
 # NOTE: Also make sure they are started with '--rm' so they're deleted when killed
 
-# Repository URLs
-REPO_URL_DOCKER_COMPOSE="https://github.com/docker/compose.git"
-REPO_URL_RTLSDR="git://git.osmocom.org/rtl-sdr"
+# URLs
+URL_REPO_DOCKER_COMPOSE="https://github.com/docker/compose.git"
+URL_REPO_RTLSDR="git://git.osmocom.org/rtl-sdr"
+URL_PLANEFINDER_REGISTRATION="http://dataupload.planefinder.net/ng-client/auth.php"
 
 # List of RTL-SRD devices (will be populated by script)
 RTLSDR_DEVICES=()
@@ -297,7 +298,7 @@ function get_latest_docker_compose_version() {
 
     # clone docker-compose repo
     logger_logfile_only "get_latest_docker_compose_version" "Attempting clone of docker-compose git repo"
-    if git clone "$REPO_URL_DOCKER_COMPOSE" "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
+    if git clone "$URL_REPO_DOCKER_COMPOSE" "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
         # do nothing
         :
     else
@@ -632,7 +633,7 @@ function input_fr24_details() {
         if [[ -z "$USER_OUTPUT" ]]; then
             
             # get email
-            echo -ne "  - ${LIGHTGRAY}Please enter a valid email address for your Flightradar24 account: "
+            echo -ne "  - ${LIGHTGRAY}Please enter a valid email address for your Flightradar24 feeder: "
             if [[ -n "$2" ]]; then
                 echo -n "(previously: ${2}) "
             fi
@@ -696,6 +697,7 @@ function input_fr24_details() {
 
         else
             valid_input=1
+            echo "FR24_RADAR_ID=$USER_OUTPUT" >> "$PREFSFILE"
         fi
     done
 }
@@ -760,6 +762,95 @@ function input_piaware_details() {
             fi
         else
             valid_input=1
+            echo "PIAWARE_FEEDER_ID=$USER_OUTPUT" >> "$PREFSFILE"
+        fi
+    done
+}
+
+function input_planefinder_details() {
+    # Get piaware input from user
+    # $1 = previous sharecode (optional)
+    # $1 = previous email
+    # -----------------    
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter your Planefinder share code. If you don't have one, just hit enter and a new one will be generated: "
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: ${1}) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        # need to generate a new feeder id
+        if [[ -z "$USER_OUTPUT" ]]; then
+
+            # get email
+            echo -ne "  - ${LIGHTGRAY}Please enter a valid email address for your Planefinder feeder: "
+            if [[ -n "$2" ]]; then
+                echo -n "(previously: ${2}) "
+            fi
+            echo -ne "${NOCOLOR}"
+            read -r PLANEFINDER_EMAIL
+            echo ""
+            echo "PLANEFINDER_EMAIL=$PLANEFINDER_EMAIL" >> "$PREFSFILE"
+            
+            # run through sign-up process
+            logger "input_planefinder_details" "Running Planefinder share code generation process (takes a few seconds)..." "$LIGHTBLUE"
+            source "$PREFSFILE"
+
+            # prepare form data
+            planefinder_registration_data="email=$(echo -n "$PLANEFINDER_EMAIL" | jq -sRr @uri)"
+            planefinder_registration_data+="&lat=$FEEDER_LAT"
+            planefinder_registration_data+="&lon=$FEEDER_LONG"
+            planefinder_registration_data+="&r=register"
+            logger_logfile_only "input_planefinder_details" "$planefinder_registration_data"
+
+            # submit the form and capture the results
+            planefinder_registration_json=$(curl "$URL_PLANEFINDER_REGISTRATION" \
+                --silent \
+                -XPOST \
+                -H 'Accept: application/json, text/javascript, */*; q=0.01' \
+                -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+                -H "Content-Length: ${#planefinder_registration_data}" \
+                -H 'Host: dataupload.planefinder.net' \
+                -H 'Accept-Encoding: gzip, deflate' \
+                -H 'Connection: keep-alive' \
+                --data "$planefinder_registration_data" \
+                --output - | gunzip)
+
+            # make sure the returned JSON is valid
+            if echo "$planefinder_registration_json" | jq >> "$LOGFILE" 2>&1; then
+                logger_logfile_only "input_planefinder_details" "JSON validated OK"
+            else
+                logger "input_planefinder_details" "ERROR: Could not interpret response from planefinder :-(" "$LIGHTRED"
+                logger_logfile_only "input_planefinder_details" "$planefinder_registration_json"
+                exit_failure
+            fi
+
+            # make sure the returned JSON contains "success=true"
+            if [[ "$(echo $planefinder_registration_json | jq .success)" == "true" ]]; then
+                logger_logfile_only "input_planefinder_details" "returned JSON contains 'success=true'"
+            else
+                logger "input_planefinder_details" "ERROR: Response from planefinder was not successful :-(" "$LIGHTRED"
+                logger_logfile_only "input_planefinder_details" "$planefinder_registration_json"
+                exit_failure
+            fi
+
+            # make sure we can get the share code
+            if planefinder_sharecode=$(echo $planefinder_registration_json | jq .payload.sharecode | tr -d '"'); then
+                logger "input_planefinder_details" "Your new planefinder sharecode is: $planefinder_sharecode" "$LIGHTGREEN"
+                valid_input=1
+                echo "PLANEFINDER_SHARECODE=$planefinder_sharecode" >> "$PREFSFILE"
+            else
+                logger "input_planefinder_details" "ERROR: Could not determine planefinder sharecode from response :-(" "$LIGHTRED"
+                logger_logfile_only "input_planefinder_details" "$planefinder_registration_json"
+                exit_failure
+            fi
+        else
+            valid_input=1
+            echo "PLANEFINDER_SHARECODE=$USER_OUTPUT" >> "$PREFSFILE"
         fi
     done
 }
@@ -799,7 +890,7 @@ function find_rtlsdr_devices() {
 
     # clone rtl-sdr repo
     logger_logfile_only "find_rtlsdr_devices" "Attempting to clone RTL-SDR repo..."
-    if git clone --depth 1 "$REPO_URL_RTLSDR" "$REPO_PATH_RTLSDR" >> "$LOGFILE" 2>&1; then
+    if git clone --depth 1 "$URL_REPO_RTLSDR" "$REPO_PATH_RTLSDR" >> "$LOGFILE" 2>&1; then
         logger_logfile_only "find_rtlsdr_devices" "Clone of RTL-SDR repo OK"
     else
         logger "find_rtlsdr_devices" "ERROR: Problem cloneing RTL-SDR repo :-(" "$LIGHTRED"
@@ -987,7 +1078,7 @@ function get_feeder_preferences() {
     # Get feeder alt
     input_altitude "$FEEDER_ALT_M" "$FEEDER_ALT_FT"
 
-
+    # Get ADSBX details
     if input_yes_or_no "Do you want to feed ADS-B Exchange (adsbexchange.com)?" "$FEED_ADSBX"; then
         echo "FEED_ADSBX=\"y\"" >> "$PREFSFILE"
         input_adsbx_details "$ADSBX_UUID" "$ADSBX_SITENAME"
@@ -998,6 +1089,9 @@ function get_feeder_preferences() {
             echo "ADSBX_SITENAME="
         } >> "$PREFSFILE"
     fi
+
+    # Get FR24 details
+    echo ""
     if input_yes_or_no "Do you want to feed Flightradar24 (flightradar24.com)?" "$FEED_FLIGHTRADAR24"; then
         echo "FEED_FLIGHTRADAR24=\"y\"" >> "$PREFSFILE"
         input_fr24_details "$FR24_KEY" "$FR24_EMAIL"
@@ -1009,6 +1103,9 @@ function get_feeder_preferences() {
             echo "FR24_RADAR_ID="
         } >> "$PREFSFILE"
     fi
+
+    # Get Opensky details
+    echo ""
     if input_yes_or_no "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
         echo "FEED_OPENSKY=\"y\"" >> "$PREFSFILE"
         input_opensky_details "$OPENSKY_USERNAME"
@@ -1018,6 +1115,9 @@ function get_feeder_preferences() {
             echo "OPENSKY_USERNAME="
         } >> "$PREFSFILE"
     fi
+
+    # Get flightaware/piaware details
+    echo ""
     if input_yes_or_no "Do you want to feed FlightAware (flightaware.com)?" "$FEED_FLIGHTAWARE"; then
         echo "FEED_FLIGHTAWARE=\"y\"" >> "$PREFSFILE"
         input_piaware_details "$PIAWARE_FEEDER_ID"
@@ -1027,11 +1127,22 @@ function get_feeder_preferences() {
             echo "PIAWARE_FEEDER_ID="
         } >> "$PREFSFILE"
     fi
+
+    # Get planefinder details
+    echo ""
     if input_yes_or_no "Do you want to feed PlaneFinder (planefinder.net)?" "$FEED_PLANEFINDER"; then
         echo "FEED_PLANEFINDER=\"y\"" >> "$PREFSFILE"
+        input_planefinder_details "$PLANEFINDER_SHARECODE" "$PLANEFINDER_EMAIL"
     else
-        echo "FEED_PLANEFINDER=\"n\"" >> "$PREFSFILE"
+        {
+            echo "FEED_PLANEFINDER=\"n\""
+            echo "PLANEFINDER_SHARECODE="
+            echo "PLANEFINDER_EMAIL="
+        } >> "$PREFSFILE"
     fi
+
+    # Get radarbox details
+    echo ""
     if input_yes_or_no "Do you want to feed AirNav RadarBox (radarbox.com)?" "$FEED_RADARBOX"; then
         echo "FEED_RADARBOX=\"y\"" >> "$PREFSFILE"
     else
@@ -1138,6 +1249,42 @@ if ! is_binary_installed bc; then
         exit 1
     else
         install_with_apt bc
+    fi
+    echo ""
+fi
+
+# Get jq to convert between metric/imperial
+if ! is_binary_installed jq; then
+    echo ""
+    echo -e "${WHITE}===== Installing 'jq' =====${NOCOLOR}"
+    echo ""
+    echo "This script needs to install the 'jq' utility, which is used for:"
+    echo " * JSON querying/parsing for Planefinder sign-up"
+    echo ""
+    if ! input_yes_or_no "May this script install the 'jq' utility?"; then
+        echo "Not proceeding."
+        echo ""
+        exit 1
+    else
+        install_with_apt jq
+    fi
+    echo ""
+fi
+
+# Get jq to convert between metric/imperial
+if ! is_binary_installed curl; then
+    echo ""
+    echo -e "${WHITE}===== Installing 'curl' =====${NOCOLOR}"
+    echo ""
+    echo "This script needs to install the 'curl' utility, which is used for:"
+    echo " * Automatic submission of Planefinder sign-up form"
+    echo ""
+    if ! input_yes_or_no "May this script install the 'curl' utility?"; then
+        echo "Not proceeding."
+        echo ""
+        exit 1
+    else
+        install_with_apt curl
     fi
     echo ""
 fi
