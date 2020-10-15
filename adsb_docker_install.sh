@@ -45,6 +45,7 @@ REGEX_PATTERN_NOT_EMPTY='^.+$'
 # File/dir locations
 PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
+PROJECTDIR="/opt/adsb"
 
 # Temp files/dirs
 TMPFILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_FR24SIGNUP_EXPECT)"
@@ -1281,6 +1282,9 @@ function get_feeder_preferences() {
     rm "$PREFSFILE" > /dev/null 2>&1 || true
     touch "$PREFSFILE"
 
+    # Get feeder timezone
+    # TODO - get timezone and put into FEEDER_TZ
+
     # Get feeder lat/long
     input_lat_long "$FEEDER_LAT" "$FEEDER_LONG"
 
@@ -1407,6 +1411,150 @@ function set_rtlsdr_serial_to_00001090() {
     # set current serial number of radio
     docker run --rm -it --device="${RTLSDR_DEVICES[0]}":"${RTLSDR_DEVICES[0]}" --entrypoint rtl_eeprom mikenye/readsb -s 00001090 # TODO: yessage
 
+}
+
+function create_docker_compose_yml_file() {
+
+    source "$PREFSFILE"
+    COMPOSEFILE="$PROJECTDIR/docker-compose.yml"
+
+    {
+        # File header
+        echo "version: '2.0'"
+
+        # Define services
+        echo "services:"
+
+        # ADSBX Service
+        if [[ "$FEED_ADSBX" == "y" ]]; then
+            echo ""
+            echo "  adsbx:"
+            echo "    image: mikenye/adsbexchange:latest"
+            echo "    tty: true"
+            echo "    container_name: adsbx"
+            echo "    hostname: adsbx"
+            echo "    restart: always"
+            echo "    depends_on:"
+            echo "      - readsb"
+            echo "    environment:"
+            echo '      - ALT=${FEEDER_ALT_FT}ft'
+            echo "      - BEASTHOST=readsb"
+            echo '      - LAT=${FEEDER_LAT}'
+            echo '      - LONG=${FEEDER_LONG}'
+            echo '      - SITENAME=${ADSBX_SITENAME}'
+            echo '      - TZ=${FEEDER_TZ}'
+            echo '      - UUID=${ADSBX_UUID}'
+            echo ""
+        fi
+
+        # FlightAware (piaware) Service
+        # TODO - port mapping for skyaware if wanted
+        # TODO - bing maps API key
+        if [[ "$FEED_FLIGHTAWARE" == "y" ]]; then
+            echo ""
+            echo "  piaware:"
+            echo "    image: mikenye/piaware:latest"
+            echo "    tty: true"
+            echo "    container_name: adsbx"
+            echo "    hostname: adsbx"
+            echo "    restart: always"
+            echo "    depends_on:"
+            echo "      - readsb"
+            echo "    environment:"
+            echo "      - BEASTHOST=readsb"
+            echo '      - FEEDER_ID=${PIAWARE_FEEDER_ID}'
+            echo '      - LAT=${FEEDER_LAT}'
+            echo '      - LONG=${FEEDER_LONG}'
+            echo '      - TZ=${FEEDER_TZ}'
+            echo ""
+        fi
+
+        # FlightRadar24 Service
+        # TODO - port mapping if wanted
+        if [[ "$FEED_FLIGHTRADAR24" == "y" ]]; then
+            echo ""
+            echo "  fr24:"
+            echo "    image: mikenye/fr24feed:latest"
+            echo "    tty: true"
+            echo "    container_name: fr24"
+            echo "    hostname: fr24"
+            echo "    restart: always"
+            echo "    depends_on:"
+            echo "      - readsb"
+            echo "    environment:"
+            echo "      - BEASTHOST=readsb"
+            echo '      - FR24KEY=${FR24_RADAR_ID}'
+            echo "      - MLAT=yes"
+            echo '      - TZ=${FEEDER_TZ}'
+            echo ""
+        fi
+
+        # Opensky Service
+        if [[ "$FEED_OPENSKY" == "y" ]]; then
+            echo ""
+            echo "  opensky:"
+            echo "    image: mikenye/opensky-network:latest"
+            echo "    tty: true"
+            echo "    container_name: opensky"
+            echo "    hostname: opensky"
+            echo "    restart: always"
+            echo "    depends_on:"
+            echo "      - readsb"
+            echo "    environment:"
+            echo '      - ALT=${FEEDER_ALT}'
+            echo "      - BEASTHOST=readsb"
+            echo '      - LAT=${FEEDER_LAT}'
+            echo '      - LONG=${FEEDER_LONG}'
+            echo '      - OPENSKY_SERIAL=${OPENSKY_SERIAL}'
+            echo '      - OPENSKY_USERNAME=${OPENSKY_USERNAME}'
+            echo '      - TZ=${FEEDER_TZ}'
+            echo ""
+        fi
+
+        # Planefinder Service
+        # TODO - port mapping if wanted
+        if [[ "$FEED_PLANEFINDER" == "y" ]]; then
+            echo ""
+            echo "  planefinder:"
+            echo "    image: mikenye/planefinder:latest"
+            echo "    tty: true"
+            echo "    container_name: planefinder"
+            echo "    hostname: planefinder"
+            echo "    restart: always"
+            echo "    depends_on:"
+            echo "      - readsb"
+            echo "    environment:"
+            echo "      - BEASTHOST=readsb"
+            echo '      - LAT=${FEEDER_LAT}'
+            echo '      - LONG=${FEEDER_LONG}'
+            echo '      - SHARECODE=${PLANEFINDER_SHARECODE}'
+            echo '      - TZ=${FEEDER_TZ}'
+            echo ""
+        fi
+
+        # Radarbox Service
+        # TODO - port mapping if wanted
+        if [[ "$FEED_PLANEFINDER" == "y" ]]; then
+            echo ""
+            echo "  radarbox:"
+            echo "    image: mikenye/radarbox:latest"
+            echo "    tty: true"
+            echo "    container_name: radarbox"
+            echo "    hostname: radarbox"
+            echo "    restart: always"
+            echo "    depends_on:"
+            echo "      - readsb"
+            echo "    environment:"
+            echo '      - ALT=${FEEDER_ALT}'
+            echo "      - BEASTHOST=readsb"
+            echo '      - LAT=${FEEDER_LAT}'
+            echo '      - LONG=${FEEDER_LONG}'
+            echo '      - SHARING_KEY=${RADARBOX_SHARING_KEY}'
+            echo '      - TZ=${FEEDER_TZ}'
+            echo ""
+        fi
+        
+    } > "$COMPOSEFILE"
 }
 
 ##### MAIN SCRIPT #####
@@ -1595,6 +1743,22 @@ if ! input_yes_or_no "Are you sure you want to proceed?"; then
 fi
 echo ""
 echo ""
+
+# Create project directory structure
+# TODO - prompt for the location of adsb compose project
+mkdir -p "$PROJECTDIR"
+
+# Create .env file
+# TODO - check if .env file already exists. if it does:
+#   - prompt for confirmation
+#   - backup the original
+cp "$PREFSFILE" "$PROJECTDIR/.env"
+
+# Create docker-compose.yml file
+# TODO - check if docker-compose.yml file already exists. if it does:
+#   - prompt for confirmation
+#   - backup the original
+
 
 
 # FINISHED
