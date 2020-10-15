@@ -961,7 +961,7 @@ function input_radarbox_details() {
             
             # try to retrieve the feeder ID from the container log
             if grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1; then
-                radarbox_key=$(grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_PIAWARESIGNUP_LOG" | tr -d '.')
+                radarbox_key=$(grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_RBFEEDERSIGNUP_LOG" | tr -d '.')
                 echo "RADARBOX_SHARING_KEY=$radarbox_key" >> "$PREFSFILE"
                 logger "input_radarbox_details" "Your new radarbox sharing key is: $radarbox_key" "$LIGHTGREEN"
                 valid_input=1
