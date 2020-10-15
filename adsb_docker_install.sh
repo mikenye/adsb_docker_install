@@ -715,7 +715,7 @@ function input_piaware_details() {
                 mikenye/piaware)
             
             # run expect script (to wait until logged in and a feeder ID is generated)
-            write_piaware_expectscript
+            write_piaware_expectscript "$piaware_container_id"
             if expect "$FILE_PIAWARESIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
                 logger_logfile_only "input_piaware_details" "Expect script finished OK"
                 valid_input=1
