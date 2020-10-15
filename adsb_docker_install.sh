@@ -8,6 +8,8 @@
 #       - The way we write out the FR24 / Piaware expect script logs a tonne of these.
 #       - We don't want the escape sequences expanded in this instance.
 #       - There's probably a better way to write out the expect script (heredoc?)
+#   - SC2016: Expressions don't expand in single quotes, use double quotes for that.
+#       - This is by design when we're making the docker-compose.yml file
 
 # Get PID of running instance of this script
 export TOP_PID=$$
@@ -701,6 +703,7 @@ function input_adsbx_details() {
         echo ""
 
         NOSPACENAME="$(echo -n -e "${USER_OUTPUT}" | tr -c '[a-zA-Z0-9]_\- ' '_')"
+        # TODO - if sitename already contains _XX, then we don't need to add another random number...
         adsbx_sitename="${NOSPACENAME}_$((RANDOM % 90 + 10))"
         logger "input_adsbx_details" "Your ADSB Exchange site name will be set to: $adsbx_sitename" "$LIGHTBLUE"
         echo ""
@@ -715,7 +718,7 @@ function input_fr24_details() {
     # Get fr24 input from user
     # $1 = previous fr24key (optional)
     # $2 = previous fr24_email
-    # -----------------    
+    # -----------------
     local valid_input
     valid_input=0
     while [[ "$valid_input" -ne 1 ]]; do
@@ -793,7 +796,7 @@ function input_fr24_details() {
 
         else
             valid_input=1
-            echo "FR24_RADAR_ID=$USER_OUTPUT" >> "$PREFSFILE"
+            echo "FR24_KEY=$USER_OUTPUT" >> "$PREFSFILE"
         fi
     done
 }
@@ -1196,7 +1199,6 @@ function show_preferences() {
     if [[ "$FEED_FLIGHTRADAR24" == "y" ]]; then
         echo " * Flightradar24 docker container will be created and configured"
         echo "     - Sharing Key: $FR24_KEY"
-        echo "     - Site name: $FR24_RADAR_ID"
     else
         echo " * No feeding to Flightradar24"
     fi
@@ -1303,6 +1305,9 @@ function get_rtlsdr_preferences() {
 }
 
 function get_feeder_preferences() {
+
+    # TODO - if previous values exist, "press enter for previous value" or something similar
+
     echo ""
     echo -e "${WHITE}===== Feeder Preferences =====${NOCOLOR}"
     echo ""
@@ -1447,6 +1452,9 @@ function create_docker_compose_yml_file() {
     COMPOSEFILE="$PROJECTDIR/docker-compose.yml"
 
     {
+
+        # todo - log the timestamp for when the file was created, and how the file was created etc etc
+
         # File header
         echo "version: '2.0'"
 
@@ -1780,6 +1788,7 @@ mkdir -p "$PROJECTDIR"
 # TODO - check if .env file already exists. if it does:
 #   - prompt for confirmation
 #   - backup the original
+# todo - log the timestamp for when the file was created, and how the file was created etc etc
 logger "main" "Writing $PROJECTDIR/.env ..." "$LIGHTBLUE"
 cp "$PREFSFILE" "$PROJECTDIR/.env"
 
