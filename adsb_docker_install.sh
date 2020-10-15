@@ -32,17 +32,21 @@ PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
 
 # Temp files/dirs
-FILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.FILE_FR24SIGNUP_EXPECT)"
-FILE_FR24SIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.FILE_FR24SIGNUP_LOG)"
-FILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.FILE_PIAWARESIGNUP_EXPECT)"
-FILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.FILE_PIAWARESIGNUP_LOG)"
-REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix=".adsb_docker_install.REPO_PATH_DOCKER_COMPOSE")"
-REPO_PATH_RTLSDR="$(mktemp -d --suffix=".adsb_docker_install.REPO_PATH_RTLSDR")"
+TMPFILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_FR24SIGNUP_EXPECT)"
+TMPFILE_FR24SIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_FR24SIGNUP_LOG)"
+TMPFILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIAWARESIGNUP_EXPECT)"
+TMPFILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIAWARESIGNUP_LOG)"
+TMPFILE_RBFEEDERSIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_EXPECT)"
+TMPFILE_RBFEEDERSIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_LOG)"
+TMPDIR_REPO_DOCKER_COMPOSE="$(mktemp -d --suffix=".adsb_docker_install.TMPDIR_REPO_DOCKER_COMPOSE")"
+TMPDIR_REPO_RTLSDR="$(mktemp -d --suffix=".adsb_docker_install.TMPDIR_REPO_RTLSDR")"
+TMPDIR_RBFEEDER_FAKETHERMAL="$(mktemp -d --suffix=".adsb_docker_install.TMPDIR_RBFEEDER_FAKETHERMAL")"
 # NOTE: If more temp files/dirs are added here, add to cleanup function below
 
 # Temp container IDs
 CONTAINER_ID_FR24=
 CONTAINER_ID_PIAWARE=
+CONTAINER_ID_RBFEEDER=
 # NOTE: If more temp containers are made, add to cleanup function below
 # NOTE: Also make sure they are started with '--rm' so they're deleted when killed
 
@@ -75,15 +79,17 @@ function cleanup() {
     #       this ensures any errors during cleanup are suppressed
 
     # Cleanup of temp files/dirs
-    rm -r "$FILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
-    rm -r "$FILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$REPO_PATH_DOCKER_COMPOSE" > /dev/null 2>&1 || true
-    rm -r "$REPO_PATH_RTLSDR" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$TMPDIR_REPO_DOCKER_COMPOSE" > /dev/null 2>&1 || true
+    rm -r "$TMPDIR_REPO_RTLSDR" > /dev/null 2>&1 || true
+    rm -r "$TMPDIR_RBFEEDER_FAKETHERMAL" > /dev/null 2>&1 || true
     
     # Cleanup of temp containers
     docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
     docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
+    docker kill "$CONTAINER_ID_RBFEEDER" > /dev/null 2>&1 || true
 }
 
 
@@ -113,6 +119,7 @@ function logger_logfile_only() {
 }
 
 function exit_failure() {
+    cleanup
     echo ""
     echo "Installation has failed. A log file containing troubleshooting information is located at:"
     echo "$LOGFILE"
@@ -168,7 +175,7 @@ function write_fr24_expectscript() {
         echo 'expect "+ Your sharing key ("'
         echo 'expect "+ Your radar id is"'
         echo 'expect "Saving settings to /etc/fr24feed.ini...OK"'
-    } > "$FILE_FR24SIGNUP_EXPECT"
+    } > "$TMPFILE_FR24SIGNUP_EXPECT"
 }
 
 function write_piaware_expectscript() {
@@ -180,7 +187,19 @@ function write_piaware_expectscript() {
         echo 'set timeout 120'
         echo "spawn docker logs -f $1"
         echo 'expect " my feeder ID is "'
-    } > "$FILE_PIAWARESIGNUP_EXPECT"
+    } > "$TMPFILE_PIAWARESIGNUP_EXPECT"
+}
+
+function write_rbfeeder_expectscript() {
+    # $1 = container ID of rbfeeder signup container that's running
+    #-----
+    source "$PREFSFILE"
+    {
+        echo '#!/usr/bin/env expect'
+        echo 'set timeout 120'
+        echo "spawn docker logs -f $1"
+        echo 'expect " Your new key is "'
+    } > "$TMPFILE_RBFEEDERSIGNUP_EXPECT"
 }
 
 function welcome_msg() {
@@ -298,7 +317,7 @@ function get_latest_docker_compose_version() {
 
     # clone docker-compose repo
     logger_logfile_only "get_latest_docker_compose_version" "Attempting clone of docker-compose git repo"
-    if git clone "$URL_REPO_DOCKER_COMPOSE" "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
+    if git clone "$URL_REPO_DOCKER_COMPOSE" "$TMPDIR_REPO_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
         # do nothing
         :
     else
@@ -307,7 +326,7 @@ function get_latest_docker_compose_version() {
     fi
     # get latest tag version from cloned repo
     logger_logfile_only "get_latest_docker_compose_version" "Attempting to get latest tag from cloned docker-compose git repo"
-    pushd "$REPO_PATH_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1 || exit_failure
+    pushd "$TMPDIR_REPO_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1 || exit_failure
     if docker_compose_version_latest=$(git tag --sort="-creatordate" | head -1); then
         # do nothing
         :
@@ -317,7 +336,7 @@ function get_latest_docker_compose_version() {
     fi
     popd >> "$LOGFILE" 2>&1 || exit_failure
     # clean up temp downloaded docker_compose repo
-    rm -r "$REPO_PATH_DOCKER_COMPOSE"
+    rm -r "$TMPDIR_REPO_DOCKER_COMPOSE"
 
     export docker_compose_version_latest
 
@@ -651,7 +670,7 @@ function input_fr24_details() {
             write_fr24_expectscript "$CONTAINER_ID_FR24"
             # run expect script & interpret output
             logger_logfile_only "input_fr24_details" "Running expect script..."
-            if expect "$FILE_FR24SIGNUP_EXPECT" >> "$FILE_FR24SIGNUP_LOG" 2>&1; then
+            if expect "$TMPFILE_FR24SIGNUP_EXPECT" >> "$TMPFILE_FR24SIGNUP_LOG" 2>&1; then
                 logger_logfile_only "input_fr24_details" "Expect script finished OK"
                 valid_input=1
             else
@@ -662,35 +681,35 @@ function input_fr24_details() {
                 exit_failure
             fi
 
-            docker logs "$CONTAINER_ID_FR24" > "$FILE_FR24SIGNUP_LOG"
+            docker logs "$CONTAINER_ID_FR24" > "$TMPFILE_FR24SIGNUP_LOG"
             docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
             
             # try to get sharing key
             regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
-            if grep -P "$regex_sharing_key" "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
-                sharing_key=$(grep -P "$regex_sharing_key" "$FILE_FR24SIGNUP_LOG" | \
+            if grep -P "$regex_sharing_key" "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
+                sharing_key=$(grep -P "$regex_sharing_key" "$TMPFILE_FR24SIGNUP_LOG" | \
                 sed -r "s/$regex_sharing_key/\1/")
                 echo "FR24_KEY=$sharing_key" >> "$PREFSFILE"
                 logger "input_fr24_details" "Your new flightradar24 sharing key is: $sharing_key" "$LIGHTGREEN"
                 valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Could not find flightradar24 sharing key :-(" "$LIGHTRED"
-                cat "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE"
+                cat "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE"
                 valid_input=0
                 exit_failure
             fi
 
             # try to get radar ID
             regex_radar_id='^\+ Your radar id is ([A-Za-z0-9\-]+), please include it in all email communication with us\.'
-            if grep -P "$regex_radar_id" "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
-                radar_id=$(grep -P "$regex_radar_id" "$FILE_FR24SIGNUP_LOG" | \
+            if grep -P "$regex_radar_id" "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
+                radar_id=$(grep -P "$regex_radar_id" "$TMPFILE_FR24SIGNUP_LOG" | \
                 sed -r "s/$regex_radar_id/\1/")
                 echo "FR24_RADAR_ID=$radar_id" >> "$PREFSFILE"
                 logger "input_fr24_details" "Your new flightradar24 radar ID is: $radar_id" "$LIGHTGREEN"
                 valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Could not find flightradar24 radar ID :-(" "$LIGHTRED"
-                cat "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE"
+                cat "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE"
                 valid_input=0
                 exit_failure
             fi
@@ -735,7 +754,7 @@ function input_piaware_details() {
             
             # run expect script (to wait until logged in and a feeder ID is generated)
             write_piaware_expectscript "$CONTAINER_ID_PIAWARE"
-            if expect "$FILE_PIAWARESIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
+            if expect "$TMPFILE_PIAWARESIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
                 logger_logfile_only "input_piaware_details" "Expect script finished OK"
                 valid_input=1
             else
@@ -746,18 +765,18 @@ function input_piaware_details() {
                 exit_failure
             fi
 
-            docker logs "$CONTAINER_ID_PIAWARE" > "$FILE_PIAWARESIGNUP_LOG"
+            docker logs "$CONTAINER_ID_PIAWARE" > "$TMPFILE_PIAWARESIGNUP_LOG"
             docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
             
             # try to retrieve the feeder ID from the container log
-            if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
-                piaware_feeder_id=$(grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG")
+            if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
+                piaware_feeder_id=$(grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$TMPFILE_PIAWARESIGNUP_LOG")
                 echo "PIAWARE_FEEDER_ID=$piaware_feeder_id" >> "$PREFSFILE"
                 logger "input_piaware_details" "Your new piaware feeder-id is: $piaware_feeder_id" "$LIGHTGREEN"
                 valid_input=1
             else
                 logger "input_piaware_details" "ERROR: Could not find piaware feeder-id :-(" "$LIGHTRED"
-                cat "$FILE_PIAWARESIGNUP_LOG" >> "$LOGFILE"
+                cat "$TMPFILE_PIAWARESIGNUP_LOG" >> "$LOGFILE"
                 exit_failure
             fi
         else
@@ -886,11 +905,83 @@ function input_opensky_details() {
     
 }
 
+function input_radarbox_details() {
+    # Get piaware input from user
+    # $1 = previous sharing key (optional)
+    # -----------------    
+
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter your Radarbox sharing key. If you don't have one, just hit enter and a new one will be generated: "
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: ${1}) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        # need to generate a new feeder id
+        if [[ -z "$USER_OUTPUT" ]]; then
+            
+            # run through sign-up process
+            logger "input_radarbox_details" "Running radarbox sharing key generation process (takes a few seconds)..." "$LIGHTBLUE"
+            docker pull mikenye/radarbox >> "$LOGFILE" 2>&1
+            # prepare to run the container
+            # set up fake thermal area (see: https://github.com/mikenye/docker-radarbox/issues/16)
+            source "$PREFSFILE"
+            mkdir -p "$TMPDIR_RBFEEDER_FAKETHERMAL/thermal_zone0/"
+            echo "24000" > "$TMPDIR_RBFEEDER_FAKETHERMAL/thermal_zone0/temp"
+            CONTAINER_ID_RBFEEDER=$(docker run \
+                --rm \
+                -it \
+                -d \
+                -e BEASTHOST=127.0.0.99 \
+                -e LAT="$FEEDER_LAT" \
+                -e LONG="$FEEDER_LONG" \
+                -e ALT="$FEEDER_ALT_M" \
+                -v "$TMPDIR_RBFEEDER_FAKETHERMAL":/sys/class/thermal:ro \
+                mikenye/radarbox)
+            
+            # run expect script (to wait until logged in and a feeder ID is generated)
+            write_rbfeeder_expectscript "$CONTAINER_ID_RBFEEDER"
+            if expect "$TMPFILE_RBFEEDERSIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
+                logger_logfile_only "input_radarbox_details" "Expect script finished OK"
+                valid_input=1
+            else
+                logger "input_radarbox_details" "ERROR: Problem running radarbox sharing key generation process :-(" "$LIGHTRED"
+                docker logs "$CONTAINER_ID_RBFEEDER" >> "$LOGFILE"
+                valid_input=0
+                docker kill "$CONTAINER_ID_RBFEEDER" > /dev/null 2>&1 || true
+                exit_failure
+            fi
+
+            docker logs "$CONTAINER_ID_RBFEEDER" > "$TMPFILE_RBFEEDERSIGNUP_LOG"
+            docker kill "$CONTAINER_ID_RBFEEDER" > /dev/null 2>&1 || true
+            
+            # try to retrieve the feeder ID from the container log
+            if grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1; then
+                radarbox_key=$(grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_PIAWARESIGNUP_LOG" | tr -d '.')
+                echo "RADARBOX_SHARING_KEY=$radarbox_key" >> "$PREFSFILE"
+                logger "input_radarbox_details" "Your new radarbox sharing key is: $radarbox_key" "$LIGHTGREEN"
+                valid_input=1
+            else
+                logger "input_radarbox_details" "ERROR: Could not find radarbox sharing key :-(" "$LIGHTRED"
+                cat "$TMPFILE_RBFEEDERSIGNUP_LOG" >> "$LOGFILE"
+                exit_failure
+            fi
+        else
+            valid_input=1
+            echo "RADARBOX_SHARING_KEY=$USER_OUTPUT" >> "$PREFSFILE"
+        fi
+    done
+}
+
 function find_rtlsdr_devices() {
 
     # clone rtl-sdr repo
     logger_logfile_only "find_rtlsdr_devices" "Attempting to clone RTL-SDR repo..."
-    if git clone --depth 1 "$URL_REPO_RTLSDR" "$REPO_PATH_RTLSDR" >> "$LOGFILE" 2>&1; then
+    if git clone --depth 1 "$URL_REPO_RTLSDR" "$TMPDIR_REPO_RTLSDR" >> "$LOGFILE" 2>&1; then
         logger_logfile_only "find_rtlsdr_devices" "Clone of RTL-SDR repo OK"
     else
         logger "find_rtlsdr_devices" "ERROR: Problem cloneing RTL-SDR repo :-(" "$LIGHTRED"
@@ -898,7 +989,7 @@ function find_rtlsdr_devices() {
     fi
 
     # ensure the rtl-sdr.rules file exists
-    if [[ -e "$REPO_PATH_RTLSDR/rtl-sdr.rules" ]]; then
+    if [[ -e "$TMPDIR_REPO_RTLSDR/rtl-sdr.rules" ]]; then
 
         # loop through each line of rtl-sdr.rules and look for radio
         while read -r line; do
@@ -926,7 +1017,7 @@ function find_rtlsdr_devices() {
                 done
             fi 
 
-        done < "$REPO_PATH_RTLSDR/rtl-sdr.rules"
+        done < "$TMPDIR_REPO_RTLSDR/rtl-sdr.rules"
 
     else
         logger "find_rtlsdr_devices" "ERROR: Could not find rtl-sdr.rules :-(" "$LIGHTRED"
@@ -934,7 +1025,7 @@ function find_rtlsdr_devices() {
     fi
 
     # clean up rtl-sdr repo
-    rm -r "$REPO_PATH_RTLSDR"
+    rm -r "$TMPDIR_REPO_RTLSDR"
 }
 
 function show_preferences() {
@@ -985,6 +1076,7 @@ function show_preferences() {
     # Planefinder
     if [[ "$FEED_PLANEFINDER" == "y" ]]; then
         echo " * PlaneFinder docker container will be created and configured"
+        echo "     - PlaneFinder Sharecode: $PLANEFINDER_SHARECODE"
     else
         echo " * No feeding to PlaneFinder"
     fi
@@ -992,6 +1084,7 @@ function show_preferences() {
     # RADARBOX
     if [[ "$FEED_RADARBOX" == "y" ]]; then
         echo " * AirNav RadarBox docker container will be created and configured"
+        echo "     - Radarbox Sharing Key: $RADARBOX_SHARING_KEY"
     else
         echo " * No feeding to AirNav RadarBox"
     fi
@@ -1145,8 +1238,12 @@ function get_feeder_preferences() {
     echo ""
     if input_yes_or_no "Do you want to feed AirNav RadarBox (radarbox.com)?" "$FEED_RADARBOX"; then
         echo "FEED_RADARBOX=\"y\"" >> "$PREFSFILE"
+        input_radarbox_details "$RADARBOX_SHARING_KEY"
     else
-        echo "FEED_RADARBOX=\"n\"" >> "$PREFSFILE"
+        {
+            echo "FEED_RADARBOX=\"n\""
+            echo "RADARBOX_SHARING_KEY="
+        } >> "$PREFSFILE"
     fi
     echo ""
 
@@ -1381,3 +1478,7 @@ if ! input_yes_or_no "Are you sure you want to proceed?"; then
 fi
 echo ""
 echo ""
+
+
+# FINISHED
+cleanup
