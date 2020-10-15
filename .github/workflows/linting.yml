@@ -3,13 +3,11 @@ name: Linting
 on:
   push:
     branches:
-      - master
       - initial_development
-  # pull_request:
-  #   branches:
-  #     - master
-  #     - dev
-
+  pull_request:
+    branches:
+      - initial_development
+  
 jobs:
 
   shellcheck:
