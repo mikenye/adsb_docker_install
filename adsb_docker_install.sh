@@ -1437,7 +1437,7 @@ function create_docker_compose_yml_file() {
             echo "    depends_on:"
             echo "      - readsb"
             echo "    environment:"
-            echo '      - ALT=${FEEDER_ALT_FT}ft'
+            echo '      - ALT=${FEEDER_ALT_M}m'
             echo "      - BEASTHOST=readsb"
             echo '      - LAT=${FEEDER_LAT}'
             echo '      - LONG=${FEEDER_LONG}'
@@ -1501,7 +1501,7 @@ function create_docker_compose_yml_file() {
             echo "    depends_on:"
             echo "      - readsb"
             echo "    environment:"
-            echo '      - ALT=${FEEDER_ALT}'
+            echo '      - ALT=${FEEDER_ALT_M}'
             echo "      - BEASTHOST=readsb"
             echo '      - LAT=${FEEDER_LAT}'
             echo '      - LONG=${FEEDER_LONG}'
@@ -1534,7 +1534,7 @@ function create_docker_compose_yml_file() {
 
         # Radarbox Service
         # TODO - port mapping if wanted
-        if [[ "$FEED_PLANEFINDER" == "y" ]]; then
+        if [[ "$FEED_RADARBOX" == "y" ]]; then
             echo ""
             echo "  radarbox:"
             echo "    image: mikenye/radarbox:latest"
@@ -1545,7 +1545,7 @@ function create_docker_compose_yml_file() {
             echo "    depends_on:"
             echo "      - readsb"
             echo "    environment:"
-            echo '      - ALT=${FEEDER_ALT}'
+            echo '      - ALT=${FEEDER_ALT_M}'
             echo "      - BEASTHOST=readsb"
             echo '      - LAT=${FEEDER_LAT}'
             echo '      - LONG=${FEEDER_LONG}'
