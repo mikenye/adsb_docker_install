@@ -27,6 +27,21 @@ YELLOW='\033[1;33m'
 LIGHTBLUE='\033[1;34m'
 WHITE='\033[1;37m'
 
+# Regular Expressions
+REGEX_PATTERN_OPENSKY_SERIAL=' Got a new serial number: \K[\-\d]+'
+REGEX_PATTERN_RBFEEDER_KEY='Your new key is \K[a-f0-9]+\.'
+REGEX_PATTERN_RTLSDR_RULES_IDVENDOR='ATTRS\{idVendor\}=="\K[0-9a-f]{4}'
+REGEX_PATTERN_RTLSDR_RULES_IDPRODUCT='ATTRS\{idProduct\}=="\K[0-9a-f]{4}'
+REGEX_PATTERN_LSUSB_BUSNUMBER='^Bus \K\d{3}'
+REGEX_PATTERN_LSUSB_DEVICENUMBER='^Bus \d{3} Device \K\d{3}'
+REGEX_PATTERN_VALID_LAT_LONG='^-{0,1}\d{1,3}\.\d{3,5}$'
+REGEX_PATTERN_VALID_ALT_M='^\d+\.{0,1}\d*m$'
+REGEX_PATTERN_VALID_ALT_FT='^\d+\.{0,1}\d*ft$'
+REGEX_PATTERN_FR24_SHARING_KEY='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
+REGEX_PATTERN_FR24_RADAR_ID='^\+ Your radar id is ([A-Za-z0-9\-]+), please include it in all email communication with us\.'
+REGEX_PATTERN_PIAWARE_FEEDER_ID='my feeder ID is \K[a-f0-9\-]+'
+REGEX_PATTERN_NOT_EMPTY='^.+$'
+
 # File/dir locations
 PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
@@ -38,6 +53,8 @@ TMPFILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIA
 TMPFILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIAWARESIGNUP_LOG)"
 TMPFILE_RBFEEDERSIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_EXPECT)"
 TMPFILE_RBFEEDERSIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_LOG)"
+TMPFILE_OPENSKYSIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_OPENSKYSIGNUP_EXPECT)"
+TMPFILE_OPENSKYSIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_OPENSKYSIGNUP_LOG)"
 TMPDIR_REPO_DOCKER_COMPOSE="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_REPO_DOCKER_COMPOSE)"
 TMPDIR_REPO_RTLSDR="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_REPO_RTLSDR)"
 TMPDIR_RBFEEDER_FAKETHERMAL="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_RBFEEDER_FAKETHERMAL)"
@@ -47,6 +64,7 @@ TMPDIR_RBFEEDER_FAKETHERMAL="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_RB
 CONTAINER_ID_FR24=
 CONTAINER_ID_PIAWARE=
 CONTAINER_ID_RBFEEDER=
+CONTAINER_ID_OPENSKY=
 # NOTE: If more temp containers are made, add to cleanup function below
 # NOTE: Also make sure they are started with '--rm' so they're deleted when killed
 
@@ -101,6 +119,8 @@ function cleanup() {
     rm -r "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
     rm -r "$TMPFILE_RBFEEDERSIGNUP_EXPECT" > /dev/null 2>&1 || true
     rm -r "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_OPENSKYSIGNUP_EXPECT" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_OPENSKYSIGNUP_LOG" > /dev/null 2>&1 || true
     rm -r "$TMPDIR_REPO_DOCKER_COMPOSE" > /dev/null 2>&1 || true
     rm -r "$TMPDIR_REPO_RTLSDR" > /dev/null 2>&1 || true
     rm -r "$TMPDIR_RBFEEDER_FAKETHERMAL" > /dev/null 2>&1 || true
@@ -109,6 +129,7 @@ function cleanup() {
     docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
     docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
     docker kill "$CONTAINER_ID_RBFEEDER" > /dev/null 2>&1 || true
+    docker kill "$CONTAINER_ID_OPENSKY" > /dev/null 2>&1 || true
 }
 
 
@@ -219,6 +240,18 @@ function write_rbfeeder_expectscript() {
         echo "spawn docker logs -f $1"
         echo 'expect " Your new key is "'
     } > "$TMPFILE_RBFEEDERSIGNUP_EXPECT"
+}
+
+function write_opensky_expectscript() {
+    # $1 = container ID of opensky signup container that's running
+    #-----
+    source "$PREFSFILE"
+    {
+        echo '#!/usr/bin/env expect'
+        echo 'set timeout 120'
+        echo "spawn docker logs -f $1"
+        echo 'expect " Got a new serial number: "'
+    } > "$TMPFILE_OPENSKYSIGNUP_EXPECT"
 }
 
 function welcome_msg() {
@@ -527,7 +560,7 @@ function input_lat_long() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}\.\d{3,5}$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P "$REGEX_PATTERN_VALID_LAT_LONG" > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid latitude!${NOCOLOR}"
@@ -543,7 +576,7 @@ function input_lat_long() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo "$USER_OUTPUT" | grep -P '^-{0,1}\d{1,3}\.\d{3,5}$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P "$REGEX_PATTERN_VALID_LAT_LONG" > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid longitude!${NOCOLOR}"
@@ -571,7 +604,7 @@ function input_altitude() {
         echo ""
 
         # if answer was given in m...
-        if echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*m$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P "$REGEX_PATTERN_VALID_ALT_M" > /dev/null 2>&1; then
             valid_input=1
             # convert m to ft
             bc_expression="scale=3; ${USER_OUTPUT%m} * 3.28084"
@@ -579,7 +612,7 @@ function input_altitude() {
             alt_ft="$(echo "$bc_expression" | bc -l)"
 
         # if answer was given in ft...
-        elif echo "$USER_OUTPUT" | grep -P '^\d+\.{0,1}\d*ft$' > /dev/null 2>&1; then
+        elif echo "$USER_OUTPUT" | grep -P "$REGEX_PATTERN_VALID_ALT_FT" > /dev/null 2>&1; then
             # convert ft to m
             valid_input=1
             bc_expression="scale=3; ${USER_OUTPUT%ft} * 0.3048"
@@ -705,10 +738,9 @@ function input_fr24_details() {
             docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
             
             # try to get sharing key
-            regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
-            if grep -P "$regex_sharing_key" "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
-                sharing_key=$(grep -P "$regex_sharing_key" "$TMPFILE_FR24SIGNUP_LOG" | \
-                sed -r "s/$regex_sharing_key/\1/")
+            if grep -P "$REGEX_PATTERN_FR24_SHARING_KEY" "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
+                sharing_key=$(grep -P "$REGEX_PATTERN_FR24_SHARING_KEY" "$TMPFILE_FR24SIGNUP_LOG" | \
+                sed -r "s/$REGEX_PATTERN_FR24_SHARING_KEY/\1/")
                 echo "FR24_KEY=$sharing_key" >> "$PREFSFILE"
                 logger "input_fr24_details" "Your new flightradar24 sharing key is: $sharing_key" "$LIGHTGREEN"
                 valid_input=1
@@ -720,10 +752,9 @@ function input_fr24_details() {
             fi
 
             # try to get radar ID
-            regex_radar_id='^\+ Your radar id is ([A-Za-z0-9\-]+), please include it in all email communication with us\.'
-            if grep -P "$regex_radar_id" "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
-                radar_id=$(grep -P "$regex_radar_id" "$TMPFILE_FR24SIGNUP_LOG" | \
-                sed -r "s/$regex_radar_id/\1/")
+            if grep -P "$REGEX_PATTERN_FR24_RADAR_ID" "$TMPFILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
+                radar_id=$(grep -P "$REGEX_PATTERN_FR24_RADAR_ID" "$TMPFILE_FR24SIGNUP_LOG" | \
+                sed -r "s/$REGEX_PATTERN_FR24_RADAR_ID/\1/")
                 echo "FR24_RADAR_ID=$radar_id" >> "$PREFSFILE"
                 logger "input_fr24_details" "Your new flightradar24 radar ID is: $radar_id" "$LIGHTGREEN"
                 valid_input=1
@@ -789,8 +820,8 @@ function input_piaware_details() {
             docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
             
             # try to retrieve the feeder ID from the container log
-            if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
-                piaware_feeder_id=$(grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$TMPFILE_PIAWARESIGNUP_LOG")
+            if grep -oP "$REGEX_PATTERN_PIAWARE_FEEDER_ID" "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
+                piaware_feeder_id=$(grep -oP "$REGEX_PATTERN_PIAWARE_FEEDER_ID" "$TMPFILE_PIAWARESIGNUP_LOG")
                 echo "PIAWARE_FEEDER_ID=$piaware_feeder_id" >> "$PREFSFILE"
                 logger "input_piaware_details" "Your new piaware feeder-id is: $piaware_feeder_id" "$LIGHTGREEN"
                 valid_input=1
@@ -897,6 +928,7 @@ function input_planefinder_details() {
 function input_opensky_details() {
     # Get opensky input from user
     # $1 = previous opensky username (optional)
+    # $2 = previous opensky serial
     # -----------------    
     local valid_input
 
@@ -905,7 +937,9 @@ function input_opensky_details() {
     echo -e "    (https://opensky-network.org/). You will need your OpenSky Network username in the next step."
     echo -ne "    Press any key to continue${NOCOLOR}"
     read -rsn1
+    echo ""
 
+    # Opensky username
     valid_input=0
     while [[ "$valid_input" -ne 1 ]]; do
         echo -ne "  - ${LIGHTGRAY}Please enter your OpenSky Network username: "
@@ -915,14 +949,77 @@ function input_opensky_details() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo "$USER_OUTPUT" | grep -P '^.+$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P "$REGEX_PATTERN_NOT_EMPTY" > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid OpenSky Network username!${NOCOLOR}"
         fi
     done
     echo "OPENSKY_USERNAME=$USER_OUTPUT" >> "$PREFSFILE"
-    
+
+    # Opensky serial
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter this feeder's OpenSky serial. If you don't have one, just hit enter and a new one will be generated: "
+        if [[ -n "$2" ]]; then
+            echo -n "(previously: ${2}) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        # need to generate a new feeder id
+        if [[ -z "$USER_OUTPUT" ]]; then
+
+            # run through sign-up process
+            logger "input_opensky_details" "Running OpenSky Network serial generation process (takes a few seconds)..." "$LIGHTBLUE"
+            docker pull mikenye/opensky-network >> "$LOGFILE" 2>&1
+            source "$PREFSFILE"
+            CONTAINER_ID_OPENSKY=$(docker run \
+                -d \
+                --rm \
+                -it \
+                -e BEASTHOST=127.0.0.99 \
+                -e LAT="$FEEDER_LAT" \
+                -e LONG="$FEEDER_LONG" \
+                -e ALT="$FEEDER_ALT_M" \
+                -e OPENSKY_USERNAME="$OPENSKY_USERNAME"
+                mikenye/opensky-network)
+            
+            # run expect script (to wait until logged in and a feeder ID is generated)
+            write_opensky_expectscript "$CONTAINER_ID_OPENSKY"
+
+            if expect "$TMPFILE_OPENSKYSIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
+                logger_logfile_only "input_opensky_details" "Expect script finished OK"
+                valid_input=1
+            else
+                logger "input_opensky_details" "ERROR: Problem running opensky serial generation process :-(" "$LIGHTRED"
+                docker logs "$CONTAINER_ID_OPENSKY" >> "$LOGFILE"
+                valid_input=0
+                docker kill "$CONTAINER_ID_OPENSKY" > /dev/null 2>&1 || true
+                exit_failure
+            fi
+
+            docker logs "$CONTAINER_ID_OPENSKY" > "$TMPFILE_OPENSKYSIGNUP_LOG"
+            docker kill "$CONTAINER_ID_OPENSKY" > /dev/null 2>&1 || true
+            
+            # try to retrieve the feeder ID from the container log
+            if grep -oP "$REGEX_PATTERN_OPENSKY_SERIAL" "$TMPFILE_OPENSKYSIGNUP_LOG" > /dev/null 2>&1; then
+                opensky_serial=$(grep -oP "$REGEX_PATTERN_OPENSKY_SERIAL" "$TMPFILE_OPENSKYSIGNUP_LOG")
+                echo "OPENSKY_SERIAL=$opensky_serial" >> "$PREFSFILE"
+                logger "input_opensky_details" "Your new opensky serial is: $opensky_serial" "$LIGHTGREEN"
+                valid_input=1
+            else
+                logger "input_opensky_details" "ERROR: Could not find opensky serial :-(" "$LIGHTRED"
+                cat "$TMPFILE_OPENSKYSIGNUP_LOG" >> "$LOGFILE"
+                exit_failure
+            fi
+
+        else
+            valid_input=1
+            echo "OPENSKY_SERIAL=$USER_OUTPUT" >> "$PREFSFILE"
+        fi
+    done   
 }
 
 function input_radarbox_details() {
@@ -980,8 +1077,8 @@ function input_radarbox_details() {
             docker kill "$CONTAINER_ID_RBFEEDER" > /dev/null 2>&1 || true
             
             # try to retrieve the feeder ID from the container log
-            if grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1; then
-                radarbox_key=$(grep -oP 'Your new key is \K[a-f0-9]+\.' "$TMPFILE_RBFEEDERSIGNUP_LOG" | tr -d '.')
+            if grep -oP "$REGEX_PATTERN_RBFEEDER_KEY" "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1; then
+                radarbox_key=$(grep -oP "$REGEX_PATTERN_RBFEEDER_KEY" "$TMPFILE_RBFEEDERSIGNUP_LOG" | tr -d '.')
                 echo "RADARBOX_SHARING_KEY=$radarbox_key" >> "$PREFSFILE"
                 logger "input_radarbox_details" "Your new radarbox sharing key is: $radarbox_key" "$LIGHTGREEN"
                 valid_input=1
@@ -1018,15 +1115,15 @@ function find_rtlsdr_devices() {
             if echo "$line" | grep 'SUBSYSTEMS=="usb"' > /dev/null 2>&1; then
 
                 # get idVendor & idProduct to look for
-                idVendor=$(echo "$line" | grep -oP 'ATTRS\{idVendor\}=="\K[0-9a-f]{4}')
-                idProduct=$(echo "$line" | grep -oP 'ATTRS\{idProduct\}=="\K[0-9a-f]{4}')
+                idVendor=$(echo "$line" | grep -oP "$REGEX_PATTERN_RTLSDR_RULES_IDVENDOR")
+                idProduct=$(echo "$line" | grep -oP "$REGEX_PATTERN_RTLSDR_RULES_IDPRODUCT")
 
                 # look for the USB devices
                 for lsusbline in $(lsusb -d "$idVendor:$idProduct"); do
 
                     # get bus & device number
-                    usb_bus=$(echo "$lsusbline" | grep -oP '^Bus \K\d{3}')
-                    usb_device=$(echo "$lsusbline" | grep -oP '^Bus \d{3} Device \K\d{3}')
+                    usb_bus=$(echo "$lsusbline" | grep -oP "$REGEX_PATTERN_LSUSB_BUSNUMBER")
+                    usb_device=$(echo "$lsusbline" | grep -oP "$REGEX_PATTERN_LSUSB_DEVICENUMBER")
 
                     # add to list of radios
                     if [[ -c "/dev/bus/usb/$usb_bus/$usb_device" ]]; then
