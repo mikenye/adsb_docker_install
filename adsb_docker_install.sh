@@ -1178,6 +1178,7 @@ function show_preferences() {
     if [[ "$FEED_OPENSKY" == "y" ]]; then
         echo " * OpenSky Network docker container will be created and configured"
         echo "     - OpenSky Network Username: $OPENSKY_USERNAME"
+        echo "     - OpenSky Serial Number: $OPENSKY_SERIAL"
     else
         echo " * No feeding to OpenSky Network"
     fi
@@ -1323,6 +1324,7 @@ function get_feeder_preferences() {
         {
             echo "FEED_OPENSKY=\"n\""
             echo "OPENSKY_USERNAME="
+            echo "OPENSKY_SERIAL="
         } >> "$PREFSFILE"
     fi
 
