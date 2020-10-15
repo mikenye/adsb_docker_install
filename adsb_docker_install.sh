@@ -96,6 +96,7 @@ FEEDER_ALT_FT=
 FEEDER_ALT_M=
 FEEDER_LAT=
 FEEDER_LONG=
+FEEDER_TZ=
 FR24_RADAR_ID=
 OPENSKY_SERIAL=
 OPENSKY_USERNAME=
@@ -553,7 +554,7 @@ function input_timezone() {
     while [[ "$valid_input" -ne 1 ]]; do
         echo -ne "${LIGHTGRAY}Please enter your feeder's timezone: "
         if [[ -e "/etc/timezone" ]]; then
-            echo -n "(host: '$(cat /etc/timezone)') "
+            echo -n "(host's timezone: '$(cat /etc/timezone)') "
         fi
         if [[ -n "$1" ]]; then
             echo -n "(previously: $1) "
@@ -567,7 +568,7 @@ function input_timezone() {
             echo -e "${YELLOW}Please enter a valid timezone!${NOCOLOR}"
         fi
     done
-    echo "FEEDER_TZ=$USER_OUTPUT"    
+    echo "FEEDER_TZ=$USER_OUTPUT" >> "$PREFSFILE"
 }
 
 function input_lat_long() {
@@ -1788,6 +1789,7 @@ cp "$PREFSFILE" "$PROJECTDIR/.env"
 #   - backup the original
 logger "main" "Writing $PROJECTDIR/docker-compose.yml ..." "$LIGHTBLUE"
 create_docker_compose_yml_file
+echo ""
 
 # FINISHED
 cleanup
