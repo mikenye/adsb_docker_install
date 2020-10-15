@@ -32,11 +32,11 @@ REPO_PATH_RTLSDR="$(mktemp -d --suffix="_adsb_docker_install_rtlsdr_repo")"
 
 # Cleanup of temp files/dirs
 function cleanup() {
-    rm -r "$FILE_FR24SIGNUP_EXPECT"
-    rm -r "$FILE_FR24SIGNUP_LOG"
-    rm -r "$FILE_PIAWARESIGNUP_LOG"
-    rm -r "$REPO_PATH_DOCKER_COMPOSE"
-    rm -r "$REPO_PATH_RTLSDR"
+    rm -r "$FILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
+    rm -r "$FILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$REPO_PATH_DOCKER_COMPOSE" > /dev/null 2>&1 || true
+    rm -r "$REPO_PATH_RTLSDR" > /dev/null 2>&1 || true
 }
 
 # Repository URLs
