@@ -903,7 +903,7 @@ function input_opensky_details() {
     # Let the user know that they should go and register for an account at OpenSky
     echo -e "  - ${LIGHTGRAY}Please ensure you have registered for an account on the OpenSky Network website,"
     echo -e "    (https://opensky-network.org/). You will need your OpenSky Network username in the next step."
-    echo -ne "   Press any key to continue${NOCOLOR}"
+    echo -ne "    Press any key to continue${NOCOLOR}"
     read -rsn1
 
     valid_input=0
