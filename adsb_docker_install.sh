@@ -18,9 +18,11 @@ WHITE='\033[1;37m'
 # File/path locations
 PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
-FILE_FR24SIGNUP_EXPECT="/tmp/fr24signup.exp"
-REPO_PATH_DOCKER_COMPOSE="/tmp/adsb_docker_install_docker_compose"
-REPO_PATH_RTLSDR="/tmp/adsb_docker_install_rtlsdr"
+FILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=_adsb_docker_install_fr24signup)"
+FILE_FR24SIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_fr24log)"
+FILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_piawarelog)"
+REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix="_adsb_docker_install_docker_compose_repo")"
+REPO_PATH_RTLSDR="$(mktemp -d --suffix="_adsb_docker_install_rtlsdr_repo")"
 
 # Repository URLs
 REPO_URL_DOCKER_COMPOSE="https://github.com/docker/compose.git"
@@ -34,9 +36,6 @@ RTLSDR_MODULES_TO_BLACKLIST=()
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832_sdr)
 RTLSDR_MODULES_TO_BLACKLIST+=(dvb_usb_rtl28xxu)
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832)
-
-# Name of temp docker container for fr24 sign up
-FR24_SIGNUP_CONTAINER_NAME="de749c96-0e1f-11eb-b270-1c1b0d925d3c"
 
 ##### DEFINE FUNCTIONS #####
 
@@ -82,7 +81,7 @@ function write_fr24_expectscript() {
     {
         echo '#!/usr/bin/env expect'
         echo 'set timeout 120'
-        echo "spawn docker run --name=$FR24_SIGNUP_CONTAINER_NAME -it --entrypoint fr24feed mikenye/fr24feed --signup"
+        echo "spawn timeout 120s --preserve-status --foreground --kill-after=300 docker run --rm -it --entrypoint fr24feed mikenye/fr24feed --signup"
         echo 'expect "Step 1.1 - Enter your email address (username@domain.tld)"'
         echo 'expect "$:"'
         echo "send \"${FR24_EMAIL}\r\""
@@ -100,6 +99,7 @@ function write_fr24_expectscript() {
         echo "expect \"Step 3.C - Enter antenna's altitude above the sea level (in feet)\""
         echo 'expect "$:"'
         echo "send \"${FEEDER_ALT_FT}\r\""
+        # TODO - Handle 'Validating email/location information...ERROR'
         echo 'expect "Would you like to continue using these settings?"'
         echo 'expect "Enter your choice (yes/no)$:"'
         echo "send \"yes\r\""
@@ -116,18 +116,20 @@ function write_fr24_expectscript() {
     } > "$FILE_FR24SIGNUP_EXPECT"
 }
 
-function asciiplane() {
+function welcome_msg() {
 
-cat << "ENDOFPLANE"
+cat << "EOM"
 
- __
- \  \     _ _
-  \**\ ___\/ \
-X*#####*+^^\_\
-  o/\  \
-     \__\
+  __                  
+  \  \     _ _            _    ____  ____        ____
+   \**\ ___\/ \          / \  |  _ \/ ___|      | __ )
+  X*#####*+^^\_\        / _ \ | | | \___ \ _____|  _ \
+   o/\  \              / ___ \| |_| |___) |_____| |_) |
+      \__\            /_/   \_\____/|____/      |____/
 
-ENDOFPLANE
+Welcome to the ADS-B Docker Easy Install Script
+
+EOM
 }
 
 function update_apt_repos() {
@@ -574,50 +576,135 @@ function input_fr24_details() {
             echo "FR24_EMAIL=$FR24_EMAIL" >> "$PREFSFILE"
             
             # run through sign-up process
-            logger "input_fr24_details" "Running flightradar24 sign-up process..." "$LIGHTBLUE"
+            logger "input_fr24_details" "Running flightradar24 sign-up process (takes up to 2 mins)..." "$LIGHTBLUE"
             logger_logfile_only "input_fr24_details" "Writing out expect script..."
             write_fr24_expectscript
             logger_logfile_only "input_fr24_details" "Running expect script..."
             docker rm "$FR24_SIGNUP_CONTAINER_NAME" >> "$LOGFILE" 2>&1
-            if expect "$FILE_FR24SIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
+            docker pull mikenye/flightradar24 >> "$LOGFILE" 2>&1
+            if expect "$FILE_FR24SIGNUP_EXPECT" >> "$FILE_FR24SIGNUP_LOG" 2>&1; then
                 logger_logfile_only "input_fr24_details" "Expect script finished OK"
+                valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Problem running flightradar24 sign-up process :-(" "$LIGHTRED"
+                cat "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE"
+                valid_input=0
                 exit_failure
             fi
             
             # try to get sharing key
             regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
-            if docker logs "$FR24_SIGNUP_CONTAINER_NAME" | grep -P "$regex_sharing_key" >> "$LOGFILE" 2>&1; then
-                sharing_key=$(docker logs "$FR24_SIGNUP_CONTAINER_NAME" | \
-                grep -P "$regex_sharing_key" | \
+            if grep -P "$regex_sharing_key" "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
+                sharing_key=$(grep -P "$regex_sharing_key" "$FILE_FR24SIGNUP_LOG" | \
                 sed -r "s/$regex_sharing_key/\1/")
                 echo "FR24_KEY=$sharing_key" >> "$PREFSFILE"
                 logger "input_fr24_details" "Your new flightradar24 sharing key is: $sharing_key" "$LIGHTGREEN"
+                valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Could not find flightradar24 sharing key :-(" "$LIGHTRED"
+                cat "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE"
+                valid_input=0
                 exit_failure
             fi
 
             # try to get radar ID
             regex_radar_id='^\+ Your radar id is ([A-Za-z0-9\-]+), please include it in all email communication with us\.'
-            if docker logs "$FR24_SIGNUP_CONTAINER_NAME" | grep -P "$regex_radar_id" >> "$LOGFILE" 2>&1; then
-                radar_id=$(docker logs "$FR24_SIGNUP_CONTAINER_NAME" | \
-                grep -P "$regex_radar_id" | \
+            if grep -P "$regex_radar_id" "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE" 2>&1; then
+                radar_id=$(grep -P "$regex_radar_id" "$FILE_FR24SIGNUP_LOG" | \
                 sed -r "s/$regex_radar_id/\1/")
                 echo "FR24_RADAR_ID=$radar_id" >> "$PREFSFILE"
                 logger "input_fr24_details" "Your new flightradar24 radar ID is: $radar_id" "$LIGHTGREEN"
+                valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Could not find flightradar24 radar ID :-(" "$LIGHTRED"
+                cat "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE"
+                valid_input=0
                 exit_failure
             fi
 
-            # clean up temp container
-            docker rm "$FR24_SIGNUP_CONTAINER_NAME" >> "$LOGFILE" 2>&1
         else
             valid_input=1
         fi
     done
+}
+
+function input_piaware_details() {
+    # Get piaware input from user
+    # $1 = previous feeder id (optional)
+    # -----------------    
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter your FlightAware feeder ID. If you don't have one, just hit enter and a new one will be generated: "
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: ${1}) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+
+        # need to generate a new feeder id
+        if [[ -z "$USER_OUTPUT" ]]; then
+            
+            # run through sign-up process
+            logger "input_piaware_details" "Running piaware feeder-id generation process (takes up to 30 seconds)..." "$LIGHTBLUE"
+            docker pull mikenye/piaware >> "$LOGFILE" 2>&1
+            source "$PREFSFILE"
+            timeout --preserve-status --kill-after=60s 30s \
+                docker run \
+                --rm \
+                -it \
+                -e BEASTHOST=127.0.0.1 \
+                -e LAT="$FEEDER_LAT" \
+                -e LONG="$FEEDER_LONG" \
+                mikenye/piaware > "$FILE_PIAWARESIGNUP_LOG" 2>&1
+
+            # try to retrieve the feeder ID from the container log
+            if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG"; then
+                piaware_feeder_id=$(grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG")
+                echo "PIAWARE_FEEDER_ID=$piaware_feeder_id" >> "$PREFSFILE"
+                logger "input_piaware_details" "Your new piaware feeder-id is: $sharing_key" "$LIGHTGREEN"
+                valid_input=1
+            else
+                logger "input_piaware_details" "ERROR: Could not find piaware feeder-id :-(" "$LIGHTRED"
+                exit_failure
+            fi
+            
+        else
+            valid_input=1
+        fi
+    done
+}
+
+function input_opensky_details() {
+    # Get opensky input from user
+    # $1 = previous opensky username (optional)
+    # -----------------    
+    local valid_input
+
+    # Let the user know that they should go and register for an account at OpenSky
+    echo -e "  - ${LIGHTGRAY}Please ensure you have registered for an account on the OpenSky Network website,"
+    echo -e "    (https://opensky-network.org/). You will need your OpenSky Network username in the next step."
+    echo -ne "   Press any key to continue${NOCOLOR}"
+    read -sn1
+
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "  - ${LIGHTGRAY}Please enter your OpenSky Network username: "
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: ${1}) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+        if echo $USER_OUTPUT | grep -P '^.+$' > /dev/null 2>&; then
+            valid_input=1
+        else
+            echo -e "${YELLOW}Please enter a valid OpenSky Network username!${NOCOLOR}"
+        fi
+    done
+    echo "OPENSKY_USERNAME=$USER_OUTPUT" >> "$PREFSFILE"
+    
 }
 
 function find_rtlsdr_devices() {
@@ -694,6 +781,8 @@ function show_preferences() {
     # FR24
     if [[ "$FEED_FLIGHTRADAR24" == "y" ]]; then
         echo " * Flightradar24 docker container will be created and configured"
+        echo "     - Sharing Key: $FR24_KEY"
+        echo "     - Site name: $FR24_RADAR_ID"
     else
         echo " * No feeding to Flightradar24"
     fi
@@ -701,6 +790,7 @@ function show_preferences() {
     # Opensky
     if [[ "$FEED_OPENSKY" == "y" ]]; then
         echo " * OpenSky Network docker container will be created and configured"
+        echo "     - OpenSky Network Username: $OPENSKY_USERNAME"
     else
         echo " * No feeding to OpenSky Network"
     fi
@@ -708,6 +798,7 @@ function show_preferences() {
     # FlightAware
     if [[ "$FEED_FLIGHTAWARE" == "y" ]]; then
         echo " * FlightAware (piaware) docker container will be created and configured"
+        echo "     - Piaware Feeder ID: $PIAWARE_FEEDER_ID"
     else
         echo " * No feeding to FlightAware"
     fi
@@ -828,13 +919,17 @@ function get_feeder_preferences() {
     fi
     if input_yes_or_no "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
         echo "FEED_OPENSKY=\"y\"" >> "$PREFSFILE"
+        input_opensky_details
     else
         echo "FEED_OPENSKY=\"n\"" >> "$PREFSFILE"
+        echo "OPENSKY_USERNAME=" >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed FlightAware (flightaware.com)?" "$FEED_FLIGHTAWARE"; then
         echo "FEED_FLIGHTAWARE=\"y\"" >> "$PREFSFILE"
+        input_piaware_details
     else
         echo "FEED_FLIGHTAWARE=\"n\"" >> "$PREFSFILE"
+        echo "PIAWARE_FEEDER_ID=" >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed PlaneFinder (planefinder.net)?" "$FEED_PLANEFINDER"; then
         echo "FEED_PLANEFINDER=\"y\"" >> "$PREFSFILE"
@@ -847,6 +942,12 @@ function get_feeder_preferences() {
         echo "FEED_RADARBOX=\"n\"" >> "$PREFSFILE"
     fi
     echo ""
+
+    # TODO Extra cool stuff like:
+    #   - ask about visualisations
+    #       - readsb/tar1090/vrs/fam/skyaware/etc
+    #   - get Bing Maps API key and add to flightaware etc
+
 }
 
 function unload_rtlsdr_kernel_modules() {
@@ -896,16 +997,16 @@ logger_logfile_only "main" "Script started"
 command_line="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
 logger_logfile_only "main" "Full command line: $command_line"
 
+# Make sure the script is being run as root
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root! Try 'sudo $command_line'" 
    exit 1
 fi
 
-echo ""
-asciiplane
-echo ""
-echo "Welcome to the ADS-B Docker Easy Install Script"
-echo ""
+# Display welcome message
+welcome_msg
+
+# Ensure apt-get update has been run
 update_apt_repos
 
 # Get git to download list of supported rtl-sdr radios
