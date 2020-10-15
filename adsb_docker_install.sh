@@ -15,14 +15,27 @@ YELLOW='\033[1;33m'
 LIGHTBLUE='\033[1;34m'
 WHITE='\033[1;37m'
 
-# File/path locations
+# File/dir locations
 PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
+
+# Temp files/dirs
 FILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=_adsb_docker_install_fr24signup)"
 FILE_FR24SIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_fr24log)"
 FILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_piawarelog)"
 REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix="_adsb_docker_install_docker_compose_repo")"
 REPO_PATH_RTLSDR="$(mktemp -d --suffix="_adsb_docker_install_rtlsdr_repo")"
+# NOTE: If more temp files/dirs are added here, add to cleanup function below
+
+# Cleanup of temp files/dirs
+function cleanup() {
+    rm -r "$FILE_FR24SIGNUP_EXPECT"
+    rm -r "$FILE_FR24SIGNUP_LOG"
+    rm -r "$FILE_PIAWARESIGNUP_LOG"
+    rm -r "$REPO_PATH_DOCKER_COMPOSE"
+    rm -r "$REPO_PATH_RTLSDR"
+}
+trap cleanup EXIT
 
 # Repository URLs
 REPO_URL_DOCKER_COMPOSE="https://github.com/docker/compose.git"
