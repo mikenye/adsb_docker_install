@@ -821,7 +821,7 @@ function input_planefinder_details() {
                 --output - | gunzip)
 
             # make sure the returned JSON is valid
-            if echo "$planefinder_registration_json" | jq >> "$LOGFILE" 2>&1; then
+            if echo "$planefinder_registration_json" | jq . >> "$LOGFILE" 2>&1; then
                 logger_logfile_only "input_planefinder_details" "JSON validated OK"
             else
                 logger "input_planefinder_details" "ERROR: Could not interpret response from planefinder :-(" "$LIGHTRED"
