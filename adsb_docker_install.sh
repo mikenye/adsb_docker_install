@@ -77,11 +77,15 @@ function exit_failure() {
 }
 
 function write_fr24_expectscript() {
+    # $1 = container ID of fr24 signup container that's running
+    #-----
     source "$PREFSFILE"
     {
         echo '#!/usr/bin/env expect'
         echo 'set timeout 120'
-        echo "spawn timeout 120s --preserve-status --foreground --kill-after=300 docker run --rm -it --entrypoint fr24feed mikenye/fr24feed --signup"
+        echo "spawn docker attach $1"
+        echo "sleep 3"
+        echo "send \"\r\""
         echo 'expect "Step 1.1 - Enter your email address (username@domain.tld)"'
         echo 'expect "$:"'
         echo "send \"${FR24_EMAIL}\r\""
@@ -576,21 +580,27 @@ function input_fr24_details() {
             echo "FR24_EMAIL=$FR24_EMAIL" >> "$PREFSFILE"
             
             # run through sign-up process
+            # pull & start container
             logger "input_fr24_details" "Running flightradar24 sign-up process (takes up to 2 mins)..." "$LIGHTBLUE"
-            logger_logfile_only "input_fr24_details" "Writing out expect script..."
-            write_fr24_expectscript
-            logger_logfile_only "input_fr24_details" "Running expect script..."
-            docker rm "$FR24_SIGNUP_CONTAINER_NAME" >> "$LOGFILE" 2>&1
             docker pull mikenye/flightradar24 >> "$LOGFILE" 2>&1
+            fr24_container_id=$(docker run -d --rm -it --entrypoint fr24feed mikenye/fr24feed --signup)
+            # write out expect script to attach to container and issue commands
+            write_fr24_expectscript "$fr24_container_id"
+            # run expect script & interpret output
+            logger_logfile_only "input_fr24_details" "Running expect script..."
             if expect "$FILE_FR24SIGNUP_EXPECT" >> "$FILE_FR24SIGNUP_LOG" 2>&1; then
                 logger_logfile_only "input_fr24_details" "Expect script finished OK"
                 valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Problem running flightradar24 sign-up process :-(" "$LIGHTRED"
-                cat "$FILE_FR24SIGNUP_LOG" >> "$LOGFILE"
+                docker logs "$fr24_container_id" >> "$LOGFILE"
                 valid_input=0
+                docker kill "$fr24_container_id" > /dev/null 2>&1 || true
                 exit_failure
             fi
+
+            docker logs "$fr24_container_id" > "$FILE_FR24SIGNUP_LOG"
+            docker kill "$fr24_container_id" > /dev/null 2>&1 || true
             
             # try to get sharing key
             regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
@@ -652,6 +662,7 @@ function input_piaware_details() {
             source "$PREFSFILE"
             piaware_container_id=$(docker run \
                 -d \
+                --rm \
                 -it \
                 -e BEASTHOST=127.0.0.99 \
                 -e LAT="$FEEDER_LAT" \
@@ -660,7 +671,6 @@ function input_piaware_details() {
             sleep 30
             docker logs "$piaware_container_id" > "$FILE_PIAWARESIGNUP_LOG"
             docker kill "$piaware_container_id" > /dev/null 2>&1 || true
-            docker rm "$piaware_container_id" > /dev/null 2>&1 || true
             
             # try to retrieve the feeder ID from the container log
             if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
@@ -670,9 +680,9 @@ function input_piaware_details() {
                 valid_input=1
             else
                 logger "input_piaware_details" "ERROR: Could not find piaware feeder-id :-(" "$LIGHTRED"
+                cat "$FILE_PIAWARESIGNUP_LOG" >> "$LOGFILE"
                 exit_failure
             fi
-            
         else
             valid_input=1
         fi
