@@ -647,7 +647,7 @@ function input_piaware_details() {
         if [[ -z "$USER_OUTPUT" ]]; then
             
             # run through sign-up process
-            logger "input_piaware_details" "Running piaware feeder-id generation process (takes up to 30 seconds)..." "$LIGHTBLUE"
+            logger "input_piaware_details" "Running piaware feeder-id generation process (takes approx. 30 seconds)..." "$LIGHTBLUE"
             docker pull mikenye/piaware >> "$LOGFILE" 2>&1
             source "$PREFSFILE"
             piaware_container_id=$(docker run \
@@ -663,10 +663,10 @@ function input_piaware_details() {
             docker rm "$piaware_container_id" > /dev/null 2>&1 || true
             
             # try to retrieve the feeder ID from the container log
-            if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG"; then
+            if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
                 piaware_feeder_id=$(grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG")
                 echo "PIAWARE_FEEDER_ID=$piaware_feeder_id" >> "$PREFSFILE"
-                logger "input_piaware_details" "Your new piaware feeder-id is: $sharing_key" "$LIGHTGREEN"
+                logger "input_piaware_details" "Your new piaware feeder-id is: $piaware_feeder_id" "$LIGHTGREEN"
                 valid_input=1
             else
                 logger "input_piaware_details" "ERROR: Could not find piaware feeder-id :-(" "$LIGHTRED"
