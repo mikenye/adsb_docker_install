@@ -40,13 +40,23 @@ REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix="_adsb_docker_install_docker_comp
 REPO_PATH_RTLSDR="$(mktemp -d --suffix="_adsb_docker_install_rtlsdr_repo")"
 # NOTE: If more temp files/dirs are added here, add to cleanup function below
 
-# Cleanup of temp files/dirs
+# Temp container IDs
+CONTAINER_ID_FR24=
+CONTAINER_ID_PIAWARE=
+# NOTE: If more temp containers are made, make sure they are cleaned up
+# NOTE: Also make sure they are started with '--rm' so they're deleted when killed
+
+# Cleanup function run on script exit (via trap)
 function cleanup() {
+    # Cleanup of temp files/dirs
     rm -r "$FILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
     rm -r "$FILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
     rm -r "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
     rm -r "$REPO_PATH_DOCKER_COMPOSE" > /dev/null 2>&1 || true
     rm -r "$REPO_PATH_RTLSDR" > /dev/null 2>&1 || true
+    # Cleanup of temp containers
+    docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
+    docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
 }
 
 # Repository URLs
@@ -159,8 +169,6 @@ function write_piaware_expectscript() {
         echo '#!/usr/bin/env expect'
         echo 'set timeout 120'
         echo "spawn docker logs -f $1"
-        echo "sleep 3"
-        echo 'expect " logged in to FlightAware as user guest "'
         echo 'expect " my feeder ID is "'
     } > "$FILE_PIAWARESIGNUP_EXPECT"
 }
@@ -628,9 +636,9 @@ function input_fr24_details() {
             # pull & start container
             logger "input_fr24_details" "Running flightradar24 sign-up process (takes up to 2 mins)..." "$LIGHTBLUE"
             docker pull mikenye/flightradar24 >> "$LOGFILE" 2>&1
-            fr24_container_id=$(docker run -d --rm -it --entrypoint fr24feed mikenye/fr24feed --signup)
+            CONTAINER_ID_FR24=$(docker run -d --rm -it --entrypoint fr24feed mikenye/fr24feed --signup)
             # write out expect script to attach to container and issue commands
-            write_fr24_expectscript "$fr24_container_id"
+            write_fr24_expectscript "$CONTAINER_ID_FR24"
             # run expect script & interpret output
             logger_logfile_only "input_fr24_details" "Running expect script..."
             if expect "$FILE_FR24SIGNUP_EXPECT" >> "$FILE_FR24SIGNUP_LOG" 2>&1; then
@@ -638,14 +646,14 @@ function input_fr24_details() {
                 valid_input=1
             else
                 logger "input_fr24_details" "ERROR: Problem running flightradar24 sign-up process :-(" "$LIGHTRED"
-                docker logs "$fr24_container_id" >> "$LOGFILE"
+                docker logs "$CONTAINER_ID_FR24" >> "$LOGFILE"
                 valid_input=0
-                docker kill "$fr24_container_id" > /dev/null 2>&1 || true
+                docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
                 exit_failure
             fi
 
-            docker logs "$fr24_container_id" > "$FILE_FR24SIGNUP_LOG"
-            docker kill "$fr24_container_id" > /dev/null 2>&1 || true
+            docker logs "$CONTAINER_ID_FR24" > "$FILE_FR24SIGNUP_LOG"
+            docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
             
             # try to get sharing key
             regex_sharing_key='^\+ Your sharing key \((\w+)\) has been configured and emailed to you for backup purposes\.'
@@ -705,7 +713,7 @@ function input_piaware_details() {
             logger "input_piaware_details" "Running piaware feeder-id generation process (takes approx. 30 seconds)..." "$LIGHTBLUE"
             docker pull mikenye/piaware >> "$LOGFILE" 2>&1
             source "$PREFSFILE"
-            piaware_container_id=$(docker run \
+            CONTAINER_ID_PIAWARE=$(docker run \
                 -d \
                 --rm \
                 -it \
@@ -715,20 +723,20 @@ function input_piaware_details() {
                 mikenye/piaware)
             
             # run expect script (to wait until logged in and a feeder ID is generated)
-            write_piaware_expectscript "$piaware_container_id"
+            write_piaware_expectscript "$CONTAINER_ID_PIAWARE"
             if expect "$FILE_PIAWARESIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
                 logger_logfile_only "input_piaware_details" "Expect script finished OK"
                 valid_input=1
             else
                 logger "input_piaware_details" "ERROR: Problem running piaware feeder-id generation process :-(" "$LIGHTRED"
-                docker logs "$piaware_container_id" >> "$LOGFILE"
+                docker logs "$CONTAINER_ID_PIAWARE" >> "$LOGFILE"
                 valid_input=0
-                docker kill "$piaware_container_id" > /dev/null 2>&1 || true
+                docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
                 exit_failure
             fi
 
-            docker logs "$piaware_container_id" > "$FILE_PIAWARESIGNUP_LOG"
-            docker kill "$piaware_container_id" > /dev/null 2>&1 || true
+            docker logs "$CONTAINER_ID_PIAWARE" > "$FILE_PIAWARESIGNUP_LOG"
+            docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
             
             # try to retrieve the feeder ID from the container log
             if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1; then
