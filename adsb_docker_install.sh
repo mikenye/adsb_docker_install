@@ -983,7 +983,7 @@ function input_opensky_details() {
                 -e LAT="$FEEDER_LAT" \
                 -e LONG="$FEEDER_LONG" \
                 -e ALT="$FEEDER_ALT_M" \
-                -e OPENSKY_USERNAME="$OPENSKY_USERNAME"
+                -e OPENSKY_USERNAME="$OPENSKY_USERNAME" \
                 mikenye/opensky-network)
             
             # run expect script (to wait until logged in and a feeder ID is generated)
