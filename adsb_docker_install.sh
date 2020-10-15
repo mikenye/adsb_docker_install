@@ -544,6 +544,32 @@ function input_yes_or_no() {
     done
 }
 
+function input_timezone() {
+    # Get timezone from user
+    # $1 = previous timezone
+    # -----------------
+    local valid_input
+    valid_input=0
+    while [[ "$valid_input" -ne 1 ]]; do
+        echo -ne "${LIGHTGRAY}Please enter your feeder's timezone: "
+        if [[ -e "/etc/timezone" ]]; then
+            echo -n "(host: '$(cat /etc/timezone)') "
+        fi
+        if [[ -n "$1" ]]; then
+            echo -n "(previously: $1) "
+        fi
+        echo -ne "${NOCOLOR}"
+        read -r USER_OUTPUT
+        echo ""
+        if [[ -e "/usr/share/zoneinfo/$USER_OUTPUT" ]]; then
+            valid_input=1
+        else
+            echo -e "${YELLOW}Please enter a valid timezone!${NOCOLOR}"
+        fi
+    done
+    echo "FEEDER_TZ=$USER_OUTPUT"    
+}
+
 function input_lat_long() {
     # Get lat/long input from user
     # $1 = previous lat (optional)
@@ -1151,6 +1177,7 @@ function show_preferences() {
     echo ""
 
     # Feeder position
+    echo " * Feeder timezone is: $FEEDER_TZ"
     echo " * Feeder latitude is: $FEEDER_LAT"
     echo " * Feeder longitude is: $FEEDER_LONG"
     echo " * Feeder altitude is: ${FEEDER_ALT_M}m / ${FEEDER_ALT_FT}ft"
@@ -1283,7 +1310,7 @@ function get_feeder_preferences() {
     touch "$PREFSFILE"
 
     # Get feeder timezone
-    # TODO - get timezone and put into FEEDER_TZ
+    input_timezone "$FEEDER_TZ"
 
     # Get feeder lat/long
     input_lat_long "$FEEDER_LAT" "$FEEDER_LONG"
@@ -1742,10 +1769,10 @@ if ! input_yes_or_no "Are you sure you want to proceed?"; then
     exit 1
 fi
 echo ""
-echo ""
 
 # Create project directory structure
 # TODO - prompt for the location of adsb compose project
+logger_logfile_only "main" "Creating $PROJECTDIR"
 mkdir -p "$PROJECTDIR"
 
 # Create .env file
