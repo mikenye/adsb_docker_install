@@ -65,10 +65,26 @@ RTLSDR_MODULES_TO_BLACKLIST+=(dvb_usb_rtl28xxu)
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832)
 
 # Variables that should exist in PREFSFILE
+FEEDER_LAT=
+FEEDER_LONG=
+FEEDER_ALT_M=
+FEEDER_ALT_FT=
+FEED_ADSBX=
 ADSBX_UUID=
 ADSBX_SITENAME=
+FEED_FLIGHTRADAR24=
+FR24_EMAIL=
+FR24_KEY=
+FR24_RADAR_ID=
+FEED_OPENSKY=
+OPENSKY_USERNAME=
+FEED_FLIGHTAWARE=
 PIAWARE_FEEDER_ID=
-
+FEED_PLANEFINDER=
+PLANEFINDER_SHARECODE=
+PLANEFINDER_EMAIL=
+FEED_RADARBOX=
+RADARBOX_SHARING_KEY=
 
 ##### CLEAN-UP FUNCTION #####
 
@@ -81,7 +97,10 @@ function cleanup() {
     # Cleanup of temp files/dirs
     rm -r "$TMPFILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
     rm -r "$TMPFILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_PIAWARESIGNUP_EXPECT" > /dev/null 2>&1 || true
     rm -r "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_RBFEEDERSIGNUP_EXPECT" > /dev/null 2>&1 || true
+    rm -r "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1 || true
     rm -r "$TMPDIR_REPO_DOCKER_COMPOSE" > /dev/null 2>&1 || true
     rm -r "$TMPDIR_REPO_RTLSDR" > /dev/null 2>&1 || true
     rm -r "$TMPDIR_RBFEEDER_FAKETHERMAL" > /dev/null 2>&1 || true
@@ -205,7 +224,7 @@ function write_rbfeeder_expectscript() {
 function welcome_msg() {
 
 cat << "EOM"
-
+${WHITE}
   __                  
   \  \     _ _            _    ____  ____        ____
    \**\ ___\/ \          / \  |  _ \/ ___|      | __ )
@@ -214,7 +233,7 @@ cat << "EOM"
       \__\            /_/   \_\____/|____/      |____/
 
 Welcome to the ADS-B Docker Easy Install Script
-
+${NOCOLOR}
 EOM
 }
 
