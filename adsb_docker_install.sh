@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
-trap "exit 1" TERM
+# Get PID of running instance of this script
 export TOP_PID=$$
 
+# Declar traps
+trap cleanup EXIT
+trap "cleanup; exit 1" TERM
 
 ##### DEFINE GLOBALS #####
 
@@ -35,7 +38,6 @@ function cleanup() {
     rm -r "$REPO_PATH_DOCKER_COMPOSE"
     rm -r "$REPO_PATH_RTLSDR"
 }
-trap cleanup EXIT
 
 # Repository URLs
 REPO_URL_DOCKER_COMPOSE="https://github.com/docker/compose.git"
