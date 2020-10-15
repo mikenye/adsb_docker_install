@@ -32,12 +32,12 @@ PREFSFILE="/root/adsb_docker_install.prefs"
 LOGFILE="/tmp/adsb_docker_install.log"
 
 # Temp files/dirs
-FILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=_adsb_docker_install_fr24signup)"
-FILE_FR24SIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_fr24log)"
-FILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=_adsb_docker_install_fr24signup)"
-FILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_piawarelog)"
-REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix="_adsb_docker_install_docker_compose_repo")"
-REPO_PATH_RTLSDR="$(mktemp -d --suffix="_adsb_docker_install_rtlsdr_repo")"
+FILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.FILE_FR24SIGNUP_EXPECT)"
+FILE_FR24SIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.FILE_FR24SIGNUP_LOG)"
+FILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.FILE_PIAWARESIGNUP_EXPECT)"
+FILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.FILE_PIAWARESIGNUP_LOG)"
+REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix=".adsb_docker_install.REPO_PATH_DOCKER_COMPOSE")"
+REPO_PATH_RTLSDR="$(mktemp -d --suffix=".adsb_docker_install.REPO_PATH_RTLSDR")"
 # NOTE: If more temp files/dirs are added here, add to cleanup function below
 
 # Temp container IDs
