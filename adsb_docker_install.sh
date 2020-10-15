@@ -5,7 +5,7 @@
 #   - SC1090: Can't follow non-constant source. Use a directive to specify location.
 #       - There are files that are sourced that don't yet exist until runtime.
 #   - SC2028: Echo may not expand escape sequences. Use printf.
-#       - The way we write out the FR24 expect script logs a tonne of these.
+#       - The way we write out the FR24 / Piaware expect script logs a tonne of these.
 #       - We don't want the escape sequences expanded in this instance.
 #       - There's probably a better way to write out the expect script (heredoc?)
 
@@ -34,6 +34,7 @@ LOGFILE="/tmp/adsb_docker_install.log"
 # Temp files/dirs
 FILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=_adsb_docker_install_fr24signup)"
 FILE_FR24SIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_fr24log)"
+FILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=_adsb_docker_install_fr24signup)"
 FILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=_adsb_docker_install_piawarelog)"
 REPO_PATH_DOCKER_COMPOSE="$(mktemp -d --suffix="_adsb_docker_install_docker_compose_repo")"
 REPO_PATH_RTLSDR="$(mktemp -d --suffix="_adsb_docker_install_rtlsdr_repo")"
@@ -148,6 +149,20 @@ function write_fr24_expectscript() {
         echo 'expect "+ Your radar id is"'
         echo 'expect "Saving settings to /etc/fr24feed.ini...OK"'
     } > "$FILE_FR24SIGNUP_EXPECT"
+}
+
+function write_piaware_expectscript() {
+    # $1 = container ID of piaware signup container that's running
+    #-----
+    source "$PREFSFILE"
+    {
+        echo '#!/usr/bin/env expect'
+        echo 'set timeout 120'
+        echo "spawn docker logs -f $1"
+        echo "sleep 3"
+        echo 'expect " logged in to FlightAware as user guest "'
+        echo 'expect " my feeder ID is "'
+    } > "$FILE_PIAWARESIGNUP_EXPECT"
 }
 
 function welcome_msg() {
@@ -698,7 +713,20 @@ function input_piaware_details() {
                 -e LAT="$FEEDER_LAT" \
                 -e LONG="$FEEDER_LONG" \
                 mikenye/piaware)
-            sleep 30
+            
+            # run expect script (to wait until logged in and a feeder ID is generated)
+            write_piaware_expectscript
+            if expect "$FILE_PIAWARESIGNUP_EXPECT" >> "$LOGFILE" 2>&1; then
+                logger_logfile_only "input_piaware_details" "Expect script finished OK"
+                valid_input=1
+            else
+                logger "input_piaware_details" "ERROR: Problem running piaware feeder-id generation process :-(" "$LIGHTRED"
+                docker logs "$piaware_container_id" >> "$LOGFILE"
+                valid_input=0
+                docker kill "$piaware_container_id" > /dev/null 2>&1 || true
+                exit_failure
+            fi
+
             docker logs "$piaware_container_id" > "$FILE_PIAWARESIGNUP_LOG"
             docker kill "$piaware_container_id" > /dev/null 2>&1 || true
             
