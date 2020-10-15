@@ -38,9 +38,9 @@ TMPFILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIA
 TMPFILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIAWARESIGNUP_LOG)"
 TMPFILE_RBFEEDERSIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_EXPECT)"
 TMPFILE_RBFEEDERSIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_LOG)"
-TMPDIR_REPO_DOCKER_COMPOSE="$(mktemp -d --suffix=".adsb_docker_install.TMPDIR_REPO_DOCKER_COMPOSE")"
-TMPDIR_REPO_RTLSDR="$(mktemp -d --suffix=".adsb_docker_install.TMPDIR_REPO_RTLSDR")"
-TMPDIR_RBFEEDER_FAKETHERMAL="$(mktemp -d --suffix=".adsb_docker_install.TMPDIR_RBFEEDER_FAKETHERMAL")"
+TMPDIR_REPO_DOCKER_COMPOSE="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_REPO_DOCKER_COMPOSE)"
+TMPDIR_REPO_RTLSDR="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_REPO_RTLSDR)"
+TMPDIR_RBFEEDER_FAKETHERMAL="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_RBFEEDER_FAKETHERMAL)"
 # NOTE: If more temp files/dirs are added here, add to cleanup function below
 
 # Temp container IDs
