@@ -1553,7 +1553,7 @@ function create_docker_compose_yml_file() {
             echo '      - TZ=${FEEDER_TZ}'
             echo ""
         fi
-        
+
     } > "$COMPOSEFILE"
 }
 
@@ -1752,14 +1752,15 @@ mkdir -p "$PROJECTDIR"
 # TODO - check if .env file already exists. if it does:
 #   - prompt for confirmation
 #   - backup the original
+logger "main" "Writing $PROJECTDIR/.env ..." "$LIGHTBLUE"
 cp "$PREFSFILE" "$PROJECTDIR/.env"
 
 # Create docker-compose.yml file
 # TODO - check if docker-compose.yml file already exists. if it does:
 #   - prompt for confirmation
 #   - backup the original
-
-
+logger "main" "Writing $PROJECTDIR/docker-compose.yml ..." "$LIGHTBLUE"
+create_docker_compose_yml_file
 
 # FINISHED
 cleanup
