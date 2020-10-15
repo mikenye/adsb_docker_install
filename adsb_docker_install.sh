@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2028,SC1090
+
+# Disabled check notes:
+#   - SC1090: Can't follow non-constant source. Use a directive to specify location.
+#       - There are files that are sourced that don't yet exist until runtime.
+#   - SC2028: Echo may not expand escape sequences. Use printf.
+#       - The way we write out the FR24 expect script logs a tonne of these.
+#       - We don't want the escape sequences expanded in this instance.
+#       - There's probably a better way to write out the expect script (heredoc?)
 
 # Get PID of running instance of this script
 export TOP_PID=$$
@@ -51,6 +60,12 @@ RTLSDR_MODULES_TO_BLACKLIST=()
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832_sdr)
 RTLSDR_MODULES_TO_BLACKLIST+=(dvb_usb_rtl28xxu)
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832)
+
+# Variables that should exist in PREFSFILE
+ADSBX_UUID=
+ADSBX_SITENAME=
+PIAWARE_FEEDER_ID=
+
 
 ##### DEFINE FUNCTIONS #####
 
@@ -586,8 +601,8 @@ function input_fr24_details() {
             
             # get email
             echo -ne "  - ${LIGHTGRAY}Please enter a valid email address for your Flightradar24 account: "
-            if [[ -n "$1" ]]; then
-                echo -n "(previously: ${1}) "
+            if [[ -n "$2" ]]; then
+                echo -n "(previously: ${2}) "
             fi
             echo -ne "${NOCOLOR}"
             read -r FR24_EMAIL
@@ -714,7 +729,7 @@ function input_opensky_details() {
     echo -e "  - ${LIGHTGRAY}Please ensure you have registered for an account on the OpenSky Network website,"
     echo -e "    (https://opensky-network.org/). You will need your OpenSky Network username in the next step."
     echo -ne "   Press any key to continue${NOCOLOR}"
-    read -sn1
+    read -rsn1
 
     valid_input=0
     while [[ "$valid_input" -ne 1 ]]; do
@@ -725,7 +740,7 @@ function input_opensky_details() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo $USER_OUTPUT | grep -P '^.+$' > /dev/null 2>&1; then
+        if echo "$USER_OUTPUT" | grep -P '^.+$' > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid OpenSky Network username!${NOCOLOR}"
@@ -930,34 +945,42 @@ function get_feeder_preferences() {
 
     if input_yes_or_no "Do you want to feed ADS-B Exchange (adsbexchange.com)?" "$FEED_ADSBX"; then
         echo "FEED_ADSBX=\"y\"" >> "$PREFSFILE"
-        input_adsbx_details
+        input_adsbx_details "$ADSBX_UUID" "$ADSBX_SITENAME"
     else
-        echo "FEED_ADSBX=\"n\"" >> "$PREFSFILE"
-        echo "ADSBX_UUID=" >> "$PREFSFILE"
-        echo "ADSBX_SITENAME=" >> "$PREFSFILE"
+        {
+            echo "FEED_ADSBX=\"n\""
+            echo "ADSBX_UUID="
+            echo "ADSBX_SITENAME="
+        } >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed Flightradar24 (flightradar24.com)?" "$FEED_FLIGHTRADAR24"; then
         echo "FEED_FLIGHTRADAR24=\"y\"" >> "$PREFSFILE"
-        input_fr24_details
+        input_fr24_details "$FR24_KEY" "$FR24_EMAIL"
     else
-        echo "FEED_FLIGHTRADAR24=\"n\"" >> "$PREFSFILE"
-        echo "FR24_EMAIL=" >> "$PREFSFILE"
-        echo "FR24_KEY=" >> "$PREFSFILE"
-        echo "FR24_RADAR_ID=" >> "$PREFSFILE"
+        {
+            echo "FEED_FLIGHTRADAR24=\"n\""
+            echo "FR24_EMAIL="
+            echo "FR24_KEY="
+            echo "FR24_RADAR_ID="
+        } >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed OpenSky Network (opensky-network.org)?" "$FEED_OPENSKY"; then
         echo "FEED_OPENSKY=\"y\"" >> "$PREFSFILE"
-        input_opensky_details
+        input_opensky_details "$OPENSKY_USERNAME"
     else
-        echo "FEED_OPENSKY=\"n\"" >> "$PREFSFILE"
-        echo "OPENSKY_USERNAME=" >> "$PREFSFILE"
+        {
+            echo "FEED_OPENSKY=\"n\""
+            echo "OPENSKY_USERNAME="
+        } >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed FlightAware (flightaware.com)?" "$FEED_FLIGHTAWARE"; then
         echo "FEED_FLIGHTAWARE=\"y\"" >> "$PREFSFILE"
-        input_piaware_details
+        input_piaware_details "$PIAWARE_FEEDER_ID"
     else
-        echo "FEED_FLIGHTAWARE=\"n\"" >> "$PREFSFILE"
-        echo "PIAWARE_FEEDER_ID=" >> "$PREFSFILE"
+        {
+            echo "FEED_FLIGHTAWARE=\"n\""
+            echo "PIAWARE_FEEDER_ID="
+        } >> "$PREFSFILE"
     fi
     if input_yes_or_no "Do you want to feed PlaneFinder (planefinder.net)?" "$FEED_PLANEFINDER"; then
         echo "FEED_PLANEFINDER=\"y\"" >> "$PREFSFILE"
