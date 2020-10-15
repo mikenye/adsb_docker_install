@@ -697,7 +697,7 @@ function input_opensky_details() {
         echo -ne "${NOCOLOR}"
         read -r USER_OUTPUT
         echo ""
-        if echo $USER_OUTPUT | grep -P '^.+$' > /dev/null 2>&; then
+        if echo $USER_OUTPUT | grep -P '^.+$' > /dev/null 2>&1; then
             valid_input=1
         else
             echo -e "${YELLOW}Please enter a valid OpenSky Network username!${NOCOLOR}"
