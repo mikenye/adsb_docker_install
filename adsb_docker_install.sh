@@ -650,15 +650,18 @@ function input_piaware_details() {
             logger "input_piaware_details" "Running piaware feeder-id generation process (takes up to 30 seconds)..." "$LIGHTBLUE"
             docker pull mikenye/piaware >> "$LOGFILE" 2>&1
             source "$PREFSFILE"
-            timeout --preserve-status --kill-after=60s 30s \
-                docker run \
-                --rm \
+            piaware_container_id=$(docker run \
+                -d \
                 -it \
-                -e BEASTHOST=127.0.0.1 \
+                -e BEASTHOST=127.0.0.99 \
                 -e LAT="$FEEDER_LAT" \
                 -e LONG="$FEEDER_LONG" \
-                mikenye/piaware > "$FILE_PIAWARESIGNUP_LOG" 2>&1
-
+                mikenye/piaware)
+            sleep 30
+            docker logs "$piaware_container_id" > "$FILE_PIAWARESIGNUP_LOG"
+            docker kill "$piaware_container_id" > /dev/null 2>&1 || true
+            docker rm "$piaware_container_id" > /dev/null 2>&1 || true
+            
             # try to retrieve the feeder ID from the container log
             if grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG"; then
                 piaware_feeder_id=$(grep -oP 'my feeder ID is \K[a-f0-9\-]+' "$FILE_PIAWARESIGNUP_LOG")
