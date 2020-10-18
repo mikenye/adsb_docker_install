@@ -2756,10 +2756,35 @@ cp -v "$TMPFILE_NEWPREFS" "$PREFSFILE" >> "$LOGFILE" 2>&1
 # Create docker-compose.yml file
 create_docker_compose_yml_file
 
-# TODO - start containers
-
+# start containers
+pushd "$PROJECTDIR" || exit_user_cancelled
+whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Starting containers..." 8 78
+if docker-compose up -d --remove-orphans >> "$LOGFILE" 2>&1; then
+    whiptail \
+        --clear \
+        --backtitle "$WHIPTAIL_BACKTITLE" \
+        --msgbox "Containers have been started!" \
+        --title "Containers started!" \
+        8 40
+else
+    docker-compose down >> "$LOGFILE" 2>&1 || true
+    NEWT_COLORS='root=,red' \
+        whiptail \
+            --title "Error" \
+            --msgbox "Failed to start containers :-(" 8 78
+    exit_failure
+fi
+popd || exit_user_cancelled
 
 # If we're here, then everything should've gone ok, so we can delete the temp prefs file
 rm "$TMPFILE_NEWPREFS"
+
+# TODO - print some help
+# - docker-compose up
+# - docker-compose down
+# - docker-compose logs [-f]
+# - docker logs <container> [-f]
+# - docker ps
+# must be in project dir for docker-compose commands...
 
 # FINISHED!
