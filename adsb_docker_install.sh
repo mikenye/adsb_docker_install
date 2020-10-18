@@ -2532,6 +2532,47 @@ function get_datasource_preferences() {
     done
 }
 
+function show_post_deploy_help() {
+
+    echo -e "\n\n"
+    echo -e "${LIGHTGREEN}Congratulations on your new Docker-based ADS-B deployment!${NOCOLOR}"
+    echo ""
+    echo -e "${LIGHTBLUE}Deployment Info:${NOCOLOR}"
+    echo -e " - The ${WHITE}project directory${NOCOLOR} is '${WHITE}$PROJECTDIR${NOCOLOR}'. You should cd into this directory before running any 'docker-compose' commands for your ADS-B containers."
+    echo -e " - The ${WHITE}compose file${NOCOLOR} is '${WHITE}$PROJECTDIR/docker-compose.yml${NOCOLOR}'."
+    echo -e " - The ${WHITE}environment file${NOCOLOR} is '${WHITE}$PROJECTDIR/.env${NOCOLOR}'."
+    echo -e " - The ${WHITE}container data${NOCOLOR} is stored under '${WHITE}$PROJECTDIR/data/${NOCOLOR}'."
+    echo ""
+    echo -e "${LIGHTBLUE}Basic Help:${NOCOLOR}"
+    echo -e " - To bring the environment up: ${WHITE}cd $PROJECTDIR; docker-compose up -d${NOCOLOR}"
+    echo -e " - To bring the environment down: ${WHITE}cd $PROJECTDIR; docker-compose down${NOCOLOR}"
+    echo -e " - To view the environment logs: ${WHITE}cd $PROJECTDIR; docker-compose logs -f${NOCOLOR}"
+    echo -e " - To view the logs for an individual container: ${WHITE}docker logs -f <container>${NOCOLOR}"
+    echo -e " - To view running containers: ${WHITE}docker ps${NOCOLOR}"
+    echo ""
+    echo -e "${LIGHTBLUE}Next steps for you (yes you reading this!):${NOCOLOR}"
+    echo " - Wait for 5-10 minutes for some data to be sent..."
+    if [[ "$FEED_ADSBX" == "ON" ]]; then
+        echo -e " - Go to ${WHITE}https://adsbexchange.com/myip/${NOCOLOR} to check the status of your feeder."
+    fi
+    if [[ "$FEED_FLIGHTAWARE" == "ON" ]]; then
+        echo -e " - If you haven't already, go to ${WHITE}https://flightaware.com/adsb/piaware/claim${NOCOLOR} and claim your receiver."
+    fi
+    if [[ "$FEED_FLIGHTRADAR24" == "ON" ]]; then
+        echo -e " - If you haven't already, go to ${WHITE}https://www.flightradar24.com${NOCOLOR} and create your account."
+    fi
+    if [[ "$FEED_RADARBOX" == "ON" ]]; then
+        echo -e " - If you haven't already, go to ${WHITE}https://www.radarbox.com/raspberry-pi/claim${NOCOLOR} and claim your receiver."
+    fi
+    if [[ "$FEED_PLANEFINDER" == "ON" ]]; then
+        echo -e " - If you haven't already, go to ${WHITE}https://www.planefinder.net/${NOCOLOR} 'Account' > 'Manage Receivers' and press 'Add receiver' to claim your receiver."
+    fi
+    echo ""
+    echo "If you need to reconfigure the environment, just run this script again."
+    echo "Thanks!"
+    echo -e "\n"
+}
+
 ##### MAIN SCRIPT #####
 
 # Initialise log file
@@ -2737,7 +2778,7 @@ done
 
 # Save settings?
 title="Commit settings?"
-msg="Do you want to save settings and start containers?"
+msg="Do you want to save settings and create/recreate ADS-B containers?"
 if (whiptail \
         --backtitle="$WHIPTAIL_BACKTITLE" \
         --title "$title" \
@@ -2757,7 +2798,7 @@ cp -v "$TMPFILE_NEWPREFS" "$PREFSFILE" >> "$LOGFILE" 2>&1
 create_docker_compose_yml_file
 
 # start containers
-pushd "$PROJECTDIR" || exit_user_cancelled
+pushd "$PROJECTDIR" >> "$LOGFILE" 2>&1 || exit_user_cancelled
 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Starting containers..." 8 78
 if docker-compose up -d --remove-orphans >> "$LOGFILE" 2>&1; then
     whiptail \
@@ -2774,17 +2815,12 @@ else
             --msgbox "Failed to start containers :-(" 8 78
     exit_failure
 fi
-popd || exit_user_cancelled
+popd  >> "$LOGFILE" 2>&1 || exit_user_cancelled
 
 # If we're here, then everything should've gone ok, so we can delete the temp prefs file
 rm "$TMPFILE_NEWPREFS"
 
-# TODO - print some help
-# - docker-compose up
-# - docker-compose down
-# - docker-compose logs [-f]
-# - docker logs <container> [-f]
-# - docker ps
-# must be in project dir for docker-compose commands...
+# print some help
+show_post_deploy_help
 
 # FINISHED!
