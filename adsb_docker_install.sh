@@ -88,7 +88,7 @@ CONTAINER_ID_TEMPORARY=
 
 # Container Images
 IMAGE_TEMPORARY_HELPER="mikenye/adsb_docker_install_helper:latest"
-IMAGE_DOCKER_COMPOSE="linuxserver/docker-compose"
+IMAGE_DOCKER_COMPOSE="linuxserver/docker-compose:latest"
 
 # URLs
 URL_REPO_RTLSDR="git://git.osmocom.org/rtl-sdr"
