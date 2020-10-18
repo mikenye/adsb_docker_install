@@ -22,10 +22,8 @@ trap "exit 1" TERM
 
 # Bash CLI Colors
 NOCOLOR='\033[0m'
-LIGHTGRAY='\033[0;37m'
 LIGHTRED='\033[1;31m'
 LIGHTGREEN='\033[1;32m'
-YELLOW='\033[1;33m'
 LIGHTBLUE='\033[1;34m'
 WHITE='\033[1;37m'
 
@@ -93,7 +91,6 @@ IMAGE_TEMPORARY_HELPER="mikenye/adsb_docker_install_helper:latest"
 IMAGE_DOCKER_COMPOSE="linuxserver/docker-compose"
 
 # URLs
-URL_REPO_DOCKER_COMPOSE="https://github.com/docker/compose.git"
 URL_REPO_RTLSDR="git://git.osmocom.org/rtl-sdr"
 URL_PLANEFINDER_REGISTRATION="http://dataupload.planefinder.net/ng-client/auth.php"
 
@@ -2122,8 +2119,8 @@ function create_docker_compose_yml_file() {
                 echo "      device: $PROJECTDIR/data/radarbox_segfault_fix"
                 echo "      o: bind"
             } >> "$COMPOSEFILE"
-            mkdir -p $PROJECTDIR/data/radarbox_segfault_fix/thermal_zone0
-            echo 24000 > $PROJECTDIR/data/radarbox_segfault_fix/thermal_zone0/temp
+            mkdir -p "$PROJECTDIR/data/radarbox_segfault_fix/thermal_zone0"
+            echo 24000 > "$PROJECTDIR/data/radarbox_segfault_fix/thermal_zone0/temp"
         fi
     fi
 
@@ -2762,7 +2759,7 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
 
         title="Confirm Settings"
         msg="Please confirm all settings (scroll with arrow keys):\n\n"
-        msg+=$(cat /opt/adsb/.env.new_from_adsb_docker_install | grep -vP "$REGEX_PATTERN_COMMENTS" | grep -vP '^ADSB_DOCKER_INSTALL_')
+        msg+=$(grep -vP "$REGEX_PATTERN_COMMENTS" "$TMPFILE_NEWPREFS" | grep -vP '^ADSB_DOCKER_INSTALL_')
         msg+="\n--end of settings--"
         if (whiptail \
                 --backtitle="$WHIPTAIL_BACKTITLE" \
