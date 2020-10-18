@@ -57,21 +57,27 @@ LOGFILE="/tmp/adsb_docker_install.log"
 # Whiptail dialog globals
 WHIPTAIL_BACKTITLE="ADS-B Docker Easy Install"
 
-# Temp files/dirs
-TMPFILE_FR24SIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_FR24SIGNUP_EXPECT)"
-TMPFILE_FR24SIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_FR24SIGNUP_LOG)"
-TMPFILE_PIAWARESIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIAWARESIGNUP_EXPECT)"
-TMPFILE_PIAWARESIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_PIAWARESIGNUP_LOG)"
-TMPFILE_RBFEEDERSIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_EXPECT)"
-TMPFILE_RBFEEDERSIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_RBFEEDERSIGNUP_LOG)"
-TMPFILE_OPENSKYSIGNUP_EXPECT="$(mktemp --suffix=.adsb_docker_install.TMPFILE_OPENSKYSIGNUP_EXPECT)"
-TMPFILE_OPENSKYSIGNUP_LOG="$(mktemp --suffix=.adsb_docker_install.TMPFILE_OPENSKYSIGNUP_LOG)"
+# Temp files - created in one dir
+TMPDIR_ADSB_DOCKER_INSTALL="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_ADSB_DOCKER_INSTALL)"
+TMPFILE_FR24SIGNUP_EXPECT="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_FR24SIGNUP_EXPECT"
+TMPFILE_FR24SIGNUP_LOG="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_FR24SIGNUP_LOG"
+TMPFILE_PIAWARESIGNUP_EXPECT="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_PIAWARESIGNUP_EXPECT"
+TMPFILE_PIAWARESIGNUP_LOG="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_PIAWARESIGNUP_LOG"
+TMPFILE_RBFEEDERSIGNUP_EXPECT="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_RBFEEDERSIGNUP_EXPECT"
+TMPFILE_RBFEEDERSIGNUP_LOG="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_RBFEEDERSIGNUP_LOG"
+TMPFILE_OPENSKYSIGNUP_EXPECT="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_OPENSKYSIGNUP_EXPECT"
+TMPFILE_OPENSKYSIGNUP_LOG="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_OPENSKYSIGNUP_LOG"
+TMPFILE_DOCKER_COMPOSE_SCRATCH="$TMPDIR_ADSB_DOCKER_INSTALL/TMPFILE_DOCKER_COMPOSE_SCRATCH"
 # TMPFILE_NEWPREFS will be defined later
 TMPFILE_NEWPREFS=
-TMPDIR_REPO_DOCKER_COMPOSE="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_REPO_DOCKER_COMPOSE)"
-TMPDIR_REPO_RTLSDR="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_REPO_RTLSDR)"
-TMPDIR_RBFEEDER_FAKETHERMAL="$(mktemp -d --suffix=.adsb_docker_install.TMPDIR_RBFEEDER_FAKETHERMAL)"
-# NOTE: If more temp files/dirs are added here, add to cleanup function below
+
+# Temp dirs - created in above main temp dir
+TMPDIR_REPO_DOCKER_COMPOSE="$TMPDIR_ADSB_DOCKER_INSTALL/TMPDIR_REPO_DOCKER_COMPOSE"
+mkdir -p "$TMPDIR_REPO_DOCKER_COMPOSE"
+TMPDIR_REPO_RTLSDR="$TMPDIR_ADSB_DOCKER_INSTALL/TMPDIR_REPO_RTLSDR"
+mkdir -p "$TMPDIR_ADSB_DOCKER_INSTALL"
+TMPDIR_RBFEEDER_FAKETHERMAL="$TMPDIR_ADSB_DOCKER_INSTALL/TMPDIR_RBFEEDER_FAKETHERMAL"
+mkdir -p "$TMPDIR_ADSB_DOCKER_INSTALL"
 
 # Temp container IDs
 CONTAINER_ID_FR24=
@@ -133,25 +139,14 @@ function cleanup() {
     #       this ensures any errors during cleanup are suppressed
 
     # Cleanup of temp files/dirs
-    rm -r "$TMPFILE_FR24SIGNUP_EXPECT" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_FR24SIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_PIAWARESIGNUP_EXPECT" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_PIAWARESIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_RBFEEDERSIGNUP_EXPECT" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_RBFEEDERSIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_OPENSKYSIGNUP_EXPECT" > /dev/null 2>&1 || true
-    rm -r "$TMPFILE_OPENSKYSIGNUP_LOG" > /dev/null 2>&1 || true
-    rm -r "$TMPDIR_REPO_DOCKER_COMPOSE" > /dev/null 2>&1 || true
-    rm -r "$TMPDIR_REPO_RTLSDR" > /dev/null 2>&1 || true
-    rm -r "$TMPDIR_RBFEEDER_FAKETHERMAL" > /dev/null 2>&1 || true
+    rm -r "$TMPDIR_ADSB_DOCKER_INSTALL" > /dev/null 2>&1 || true
     
     # Cleanup of temp containers
     docker kill "$CONTAINER_ID_FR24" > /dev/null 2>&1 || true
     docker kill "$CONTAINER_ID_PIAWARE" > /dev/null 2>&1 || true
     docker kill "$CONTAINER_ID_RBFEEDER" > /dev/null 2>&1 || true
     docker kill "$CONTAINER_ID_OPENSKY" > /dev/null 2>&1 || true
-    # TODO - uncomment before release
-    #docker kill "$CONTAINER_ID_TEMPORARY" > /dev/null 2>&1 || true
+    docker kill "$CONTAINER_ID_TEMPORARY" > /dev/null 2>&1 || true
 }
 
 
@@ -2065,43 +2060,57 @@ function set_rtlsdr_serial_to_00001090() {
 function create_docker_compose_yml_file() {
 
     source "$PREFSFILE"
+
+    # Top part of compose file
     {
 
-        # todo - log the timestamp for when the file was created, and how the file was created etc etc
+        # write header into docker-compose
+        echo "# Please do not remove/modify the two lines below:"
+        echo "# ADSB_DOCKER_INSTALL_ENVFILE_SCHEMA=$CURRENT_SCHEMA_VERSION"
+        echo "# ADSB_DOCKER_INSTALL_TIMESTAMP=$(date -Iseconds)"
+        echo "# -----------------------------------------------"
+        echo ""
 
         # File header
         echo "version: '2.0'"
+        echo ""
 
         # Define services
         echo "services:"
+        echo ""
 
-        # ADSBX Service
-        if [[ "$FEED_ADSBX" == "y" ]]; then
-            echo ""
-            echo "  adsbx:"
-            echo "    image: mikenye/adsbexchange:latest"
-            echo "    tty: true"
-            echo "    container_name: adsbx"
-            echo "    hostname: adsbx"
-            echo "    restart: always"
-            echo "    depends_on:"
-            echo "      - readsb"
-            echo "    environment:"
-            echo '      - ALT=${FEEDER_ALT_M}m'
-            echo "      - BEASTHOST=readsb"
-            echo '      - LAT=${FEEDER_LAT}'
-            echo '      - LONG=${FEEDER_LONG}'
-            echo '      - SITENAME=${ADSBX_SITENAME}'
-            echo '      - TZ=${FEEDER_TZ}'
-            echo '      - UUID=${ADSBX_UUID}'
-            echo ""
-        fi
+    } > "$COMPOSEFILE"
 
-        # FlightAware (piaware) Service
+    # ADSBX Service
+    {
+        echo "  adsbx:"
+        echo "    image: mikenye/adsbexchange:latest"
+        echo "    tty: true"
+        echo "    container_name: adsbx"
+        echo "    hostname: adsbx"
+        echo "    restart: always"
+        echo "    depends_on:"
+        echo "      - readsb"
+        echo "    environment:"
+        echo '      - ALT=${FEEDER_ALT_M}m'
+        echo "      - BEASTHOST=readsb"
+        echo '      - LAT=${FEEDER_LAT}'
+        echo '      - LONG=${FEEDER_LONG}'
+        echo '      - SITENAME=${ADSBX_SITENAME}'
+        echo '      - TZ=${FEEDER_TZ}'
+        echo '      - UUID=${ADSBX_UUID}'
+        echo ""
+    } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    # If this service isn't enabled, comment it out
+    if [[ "$FEED_ADSBX" != "ON" ]]; then
+        sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    fi
+    cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
+
+    # FlightAware (piaware) Service
+    {
         # TODO - port mapping for skyaware if wanted
         # TODO - bing maps API key
-        if [[ "$FEED_FLIGHTAWARE" == "y" ]]; then
-            echo ""
             echo "  piaware:"
             echo "    image: mikenye/piaware:latest"
             echo "    tty: true"
@@ -2117,94 +2126,114 @@ function create_docker_compose_yml_file() {
             echo '      - LONG=${FEEDER_LONG}'
             echo '      - TZ=${FEEDER_TZ}'
             echo ""
-        fi
+    } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    # If this service isn't enabled, comment it out
+    if [[ "$FEED_FLIGHTAWARE" != "ON" ]]; then
+        sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    fi
+    cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
-        # FlightRadar24 Service
+    # FlightRadar24 Service
+    {
         # TODO - port mapping if wanted
-        if [[ "$FEED_FLIGHTRADAR24" == "y" ]]; then
-            echo ""
-            echo "  fr24:"
-            echo "    image: mikenye/fr24feed:latest"
-            echo "    tty: true"
-            echo "    container_name: fr24"
-            echo "    hostname: fr24"
-            echo "    restart: always"
-            echo "    depends_on:"
-            echo "      - readsb"
-            echo "    environment:"
-            echo "      - BEASTHOST=readsb"
-            echo '      - FR24KEY=${FR24_RADAR_ID}'
-            echo "      - MLAT=yes"
-            echo '      - TZ=${FEEDER_TZ}'
-            echo ""
-        fi
+        echo "  fr24:"
+        echo "    image: mikenye/fr24feed:latest"
+        echo "    tty: true"
+        echo "    container_name: fr24"
+        echo "    hostname: fr24"
+        echo "    restart: always"
+        echo "    depends_on:"
+        echo "      - readsb"
+        echo "    environment:"
+        echo "      - BEASTHOST=readsb"
+        echo '      - FR24KEY=${FR24_RADAR_ID}'
+        echo "      - MLAT=yes"
+        echo '      - TZ=${FEEDER_TZ}'
+        echo ""
+    } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    # If this service isn't enabled, comment it out
+    if [[ "$FEED_FLIGHTRADAR24" != "ON" ]]; then
+        sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    fi
+    cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
-        # Opensky Service
-        if [[ "$FEED_OPENSKY" == "y" ]]; then
-            echo ""
-            echo "  opensky:"
-            echo "    image: mikenye/opensky-network:latest"
-            echo "    tty: true"
-            echo "    container_name: opensky"
-            echo "    hostname: opensky"
-            echo "    restart: always"
-            echo "    depends_on:"
-            echo "      - readsb"
-            echo "    environment:"
-            echo '      - ALT=${FEEDER_ALT_M}'
-            echo "      - BEASTHOST=readsb"
-            echo '      - LAT=${FEEDER_LAT}'
-            echo '      - LONG=${FEEDER_LONG}'
-            echo '      - OPENSKY_SERIAL=${OPENSKY_SERIAL}'
-            echo '      - OPENSKY_USERNAME=${OPENSKY_USERNAME}'
-            echo '      - TZ=${FEEDER_TZ}'
-            echo ""
-        fi
+    # Opensky Service
+    {
+        echo "  opensky:"
+        echo "    image: mikenye/opensky-network:latest"
+        echo "    tty: true"
+        echo "    container_name: opensky"
+        echo "    hostname: opensky"
+        echo "    restart: always"
+        echo "    depends_on:"
+        echo "      - readsb"
+        echo "    environment:"
+        echo '      - ALT=${FEEDER_ALT_M}'
+        echo "      - BEASTHOST=readsb"
+        echo '      - LAT=${FEEDER_LAT}'
+        echo '      - LONG=${FEEDER_LONG}'
+        echo '      - OPENSKY_SERIAL=${OPENSKY_SERIAL}'
+        echo '      - OPENSKY_USERNAME=${OPENSKY_USERNAME}'
+        echo '      - TZ=${FEEDER_TZ}'
+        echo ""
+    } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    # If this service isn't enabled, comment it out
+    if [[ "$FEED_OPENSKY" != "ON" ]]; then
+        sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    fi
+    cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
-        # Planefinder Service
+    # Planefinder Service
+    {
         # TODO - port mapping if wanted
-        if [[ "$FEED_PLANEFINDER" == "y" ]]; then
-            echo ""
-            echo "  planefinder:"
-            echo "    image: mikenye/planefinder:latest"
-            echo "    tty: true"
-            echo "    container_name: planefinder"
-            echo "    hostname: planefinder"
-            echo "    restart: always"
-            echo "    depends_on:"
-            echo "      - readsb"
-            echo "    environment:"
-            echo "      - BEASTHOST=readsb"
-            echo '      - LAT=${FEEDER_LAT}'
-            echo '      - LONG=${FEEDER_LONG}'
-            echo '      - SHARECODE=${PLANEFINDER_SHARECODE}'
-            echo '      - TZ=${FEEDER_TZ}'
-            echo ""
-        fi
+        echo "  planefinder:"
+        echo "    image: mikenye/planefinder:latest"
+        echo "    tty: true"
+        echo "    container_name: planefinder"
+        echo "    hostname: planefinder"
+        echo "    restart: always"
+        echo "    depends_on:"
+        echo "      - readsb"
+        echo "    environment:"
+        echo "      - BEASTHOST=readsb"
+        echo '      - LAT=${FEEDER_LAT}'
+        echo '      - LONG=${FEEDER_LONG}'
+        echo '      - SHARECODE=${PLANEFINDER_SHARECODE}'
+        echo '      - TZ=${FEEDER_TZ}'
+        echo ""
+    } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    # If this service isn't enabled, comment it out
+    if [[ "$FEED_PLANEFINDER" != "ON" ]]; then
+        sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    fi
+    cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
-        # Radarbox Service
+    # Radarbox Service
+    {
         # TODO - port mapping if wanted
-        if [[ "$FEED_RADARBOX" == "y" ]]; then
-            echo ""
-            echo "  radarbox:"
-            echo "    image: mikenye/radarbox:latest"
-            echo "    tty: true"
-            echo "    container_name: radarbox"
-            echo "    hostname: radarbox"
-            echo "    restart: always"
-            echo "    depends_on:"
-            echo "      - readsb"
-            echo "    environment:"
-            echo '      - ALT=${FEEDER_ALT_M}'
-            echo "      - BEASTHOST=readsb"
-            echo '      - LAT=${FEEDER_LAT}'
-            echo '      - LONG=${FEEDER_LONG}'
-            echo '      - SHARING_KEY=${RADARBOX_SHARING_KEY}'
-            echo '      - TZ=${FEEDER_TZ}'
-            echo ""
-        fi
+        echo "  radarbox:"
+        echo "    image: mikenye/radarbox:latest"
+        echo "    tty: true"
+        echo "    container_name: radarbox"
+        echo "    hostname: radarbox"
+        echo "    restart: always"
+        echo "    depends_on:"
+        echo "      - readsb"
+        echo "    environment:"
+        echo '      - ALT=${FEEDER_ALT_M}'
+        echo "      - BEASTHOST=readsb"
+        echo '      - LAT=${FEEDER_LAT}'
+        echo '      - LONG=${FEEDER_LONG}'
+        echo '      - SHARING_KEY=${RADARBOX_SHARING_KEY}'
+        echo '      - TZ=${FEEDER_TZ}'
+        echo ""
+    } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    # If this service isn't enabled, comment it out
+    if [[ "$FEED_RADARBOX" != "ON" ]]; then
+        sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
+    fi
+    cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
-    } > "$COMPOSEFILE"
 }
 
 ##### MAIN SCRIPT #####
@@ -2407,46 +2436,31 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
         fi
 done
 
-# # Final go-ahead
-# echo ""
-# echo -e "${WHITE}===== FINAL CONFIRMATION =====${NOCOLOR}"
-# echo ""
-# if ! input_yes_or_no "Are you sure you want to proceed?"; then
-#     exit_user_cancelled
-# fi
-# echo ""
-
+# Save settings?
+title="Commit settings?"
+msg="Do you want to save settings and start containers?"
+if (whiptail \
+        --backtitle="$WHIPTAIL_BACKTITLE" \
+        --title "$title" \
+        --yes-button "Proceed" \
+        --no-button "Abort" \
+        --yesno "$msg" \
+        8 78 ); then
+    :
+else
+    exit_user_cancelled
+fi
 
 # Create .env file
-# TODO - check if .env file already exists. if it does:
-#   - prompt for confirmation
-#   - backup the original
-# todo - log the timestamp for when the file was created, and how the file was created etc etc
-# logger "main" "Writing $PREFSFILE ..." "$LIGHTBLUE"
-# mv "$TMPFILE_NEWPREFS" "$PREFSFILE"
+cp -v "$TMPFILE_NEWPREFS" "$PREFSFILE" >> "$LOGFILE" 2>&1
 
-# # Create docker-compose.yml file
-# # TODO - check if docker-compose.yml file already exists. if it does:
-# #   - prompt for confirmation
-# #   - backup the original
-# logger "main" "Writing $COMPOSEFILE ..." "$LIGHTBLUE"
-# create_docker_compose_yml_file
-# echo ""
+# Create docker-compose.yml file
+create_docker_compose_yml_file
 
-# # FINISHED
-# cleanup
+# TODO - start containers
 
-# TODO - write header into docker-compose
-# # Please do not remove/modify the two lines below:
-#    ADSB_DOCKER_INSTALL_ENVFILE_SCHEMA=$CURRENT_SCHEMA_VERSION
-#    ADSB_DOCKER_INSTALL_TIMESTAMP=$(date -Iseconds)
-# # -----------------------------------------------
 
-# TODO, make sure sections with user input are separate from log files (lines between)
-# should we use whiptail instead of read?
+# If we're here, then everything should've gone ok, so we can delete the temp prefs file
+rm "$TMPFILE_NEWPREFS"
 
-# TODO, make a function to write a setting to file. This should
-#   - Do a grep on the file to see if the setting exists:
-#       - if so, modify the setting
-#       - if not, append the setting
-#   - this way, if the script continues to fail, we won't lose our settings
+# FINISHED!
