@@ -11,6 +11,15 @@
 #   - SC2016: Expressions don't expand in single quotes, use double quotes for that.
 #       - This is by design when we're making the docker-compose.yml file
 
+# TODOs
+#  - docker containr log rotation
+#  - support local RTLSDR
+#  - support feeding from radarcape (need to update adsbx image)
+#  - if compose file exists, use yq (in helper container) to modify the file in place - this prevents clobbering user customisations
+#  - any inline TODOs
+#
+#----------------------------------------------------------------------------
+
 # Get PID of running instance of this script
 export TOP_PID=$$
 
