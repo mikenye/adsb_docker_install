@@ -2796,6 +2796,17 @@ create_docker_compose_yml_file
 
 # start containers
 pushd "$PROJECTDIR" >> "$LOGFILE" 2>&1 || exit_user_cancelled
+whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Pulling (downloading) images..." 8 78
+if docker-compose pull >> "$LOGFILE" 2>&1; then
+    :
+else
+    docker-compose down >> "$LOGFILE" 2>&1 || true
+    NEWT_COLORS='root=,red' \
+        whiptail \
+            --title "Error" \
+            --msgbox "Failed to pull (download) images :-(" 8 78
+    exit_failure
+fi
 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Starting containers..." 8 78
 if docker-compose up -d --remove-orphans >> "$LOGFILE" 2>&1; then
     whiptail \
