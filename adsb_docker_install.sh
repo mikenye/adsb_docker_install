@@ -109,6 +109,8 @@ RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832)
 # Default settings for .env file
 ADSBX_UUID=
 ADSBX_SITENAME=
+BEASTHOST=
+BEASTPORT=30005
 FR24_KEY=
 FR24_RADAR_ID=
 FR24_EMAIL=
@@ -130,6 +132,8 @@ FEED_RADARBOX=
 OPENSKY_USERNAME=
 OPENSKY_SERIAL=
 RADARBOX_SHARING_KEY=
+SBSHOST=
+SBSPORT=30003
 
 ##### CLEAN-UP FUNCTION #####
 
@@ -1914,6 +1918,13 @@ function set_env_file_entry() {
     logger "set_env_file_entry" "Setting $1=$2 in $TMPFILE_NEWPREFS"
 }
 
+function del_env_file_entry() {
+    # $1 = variable name
+    #--------------------
+    # delete the line containing the variable
+    sed -i "/^$1=/d" file
+}
+
 function get_feeder_preferences() {
 
     # Present the user with a checklist of supported feeder services
@@ -2061,9 +2072,26 @@ function create_docker_compose_yml_file() {
 
     source "$PREFSFILE"
 
+    # adjust depends_on depending on feeder...
+    case "$DATASOURCE_TYPE" in
+        rtlsdr)
+            depends_on_readsb=1
+            ;;
+        *)
+            depends_on_readsb=0
+            ;;
+    esac
+
+    # do we need to create the volumes section?
+    if [[ "$FEED_RADARBOX" == "ON" ]]; then
+        create_volumes_section=1
+    else
+        create_volumes_section=0
+    fi
+
+
     # Top part of compose file
     {
-
         # write header into docker-compose
         echo "# Please do not remove/modify the two lines below:"
         echo "# ADSB_DOCKER_INSTALL_ENVFILE_SCHEMA=$CURRENT_SCHEMA_VERSION"
@@ -2075,11 +2103,36 @@ function create_docker_compose_yml_file() {
         echo "version: '2.0'"
         echo ""
 
-        # Define services
+    } > "$COMPOSEFILE"
+
+    # Define volumes
+    if [[ "$create_volumes_section" -eq 1 ]]; then
+        {
+            echo "volumes:"
+            echo ""
+        } >> "$COMPOSEFILE"
+
+        # implement fix for segfault - see: https://github.com/mikenye/docker-radarbox/issues/16#issuecomment-699627387
+        if [[ "$FEED_RADARBOX" == "ON" ]]; then
+            {
+                echo "  radarbox_segfault_fix:"
+                echo "    driver: local"
+                echo "    driver_opts:"
+                echo "      type: none"
+                echo "      device: $PROJECTDIR/data/radarbox_segfault_fix"
+                echo "      o: bind"
+            } >> "$COMPOSEFILE"
+            mkdir -p $PROJECTDIR/data/radarbox_segfault_fix/thermal_zone0
+            echo 24000 > $PROJECTDIR/data/radarbox_segfault_fix/thermal_zone0/temp
+        fi
+    fi
+
+    # Define services
+    {
         echo "services:"
         echo ""
 
-    } > "$COMPOSEFILE"
+    } >> "$COMPOSEFILE"
 
     # ADSBX Service
     {
@@ -2089,11 +2142,14 @@ function create_docker_compose_yml_file() {
         echo "    container_name: adsbx"
         echo "    hostname: adsbx"
         echo "    restart: always"
-        echo "    depends_on:"
-        echo "      - readsb"
+        if [[ "$depends_on_readsb" -eq 1 ]]; then
+            echo "    depends_on:"
+            echo "      - readsb"
+        fi
         echo "    environment:"
         echo '      - ALT=${FEEDER_ALT_M}m'
-        echo "      - BEASTHOST=readsb"
+        echo '      - BEASTHOST=${BEASTHOST}'
+        echo '      - BEASTPORT=${BEASTPORT}'
         echo '      - LAT=${FEEDER_LAT}'
         echo '      - LONG=${FEEDER_LONG}'
         echo '      - SITENAME=${ADSBX_SITENAME}'
@@ -2111,21 +2167,24 @@ function create_docker_compose_yml_file() {
     {
         # TODO - port mapping for skyaware if wanted
         # TODO - bing maps API key
-            echo "  piaware:"
-            echo "    image: mikenye/piaware:latest"
-            echo "    tty: true"
-            echo "    container_name: adsbx"
-            echo "    hostname: adsbx"
-            echo "    restart: always"
+        echo "  piaware:"
+        echo "    image: mikenye/piaware:latest"
+        echo "    tty: true"
+        echo "    container_name: piaware"
+        echo "    hostname: piaware"
+        echo "    restart: always"
+        if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
-            echo "    environment:"
-            echo "      - BEASTHOST=readsb"
-            echo '      - FEEDER_ID=${PIAWARE_FEEDER_ID}'
-            echo '      - LAT=${FEEDER_LAT}'
-            echo '      - LONG=${FEEDER_LONG}'
-            echo '      - TZ=${FEEDER_TZ}'
-            echo ""
+        fi
+        echo "    environment:"
+        echo '      - BEASTHOST=${BEASTHOST}'
+        echo '      - BEASTPORT=${BEASTPORT}'
+        echo '      - FEEDER_ID=${PIAWARE_FEEDER_ID}'
+        echo '      - LAT=${FEEDER_LAT}'
+        echo '      - LONG=${FEEDER_LONG}'
+        echo '      - TZ=${FEEDER_TZ}'
+        echo ""
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_FLIGHTAWARE" != "ON" ]]; then
@@ -2142,11 +2201,14 @@ function create_docker_compose_yml_file() {
         echo "    container_name: fr24"
         echo "    hostname: fr24"
         echo "    restart: always"
-        echo "    depends_on:"
-        echo "      - readsb"
+        if [[ "$depends_on_readsb" -eq 1 ]]; then
+            echo "    depends_on:"
+            echo "      - readsb"
+        fi
         echo "    environment:"
-        echo "      - BEASTHOST=readsb"
-        echo '      - FR24KEY=${FR24_RADAR_ID}'
+        echo '      - BEASTHOST=${BEASTHOST}'
+        echo '      - BEASTPORT=${BEASTPORT}'
+        echo '      - FR24KEY=${FR24_KEY}'
         echo "      - MLAT=yes"
         echo '      - TZ=${FEEDER_TZ}'
         echo ""
@@ -2165,11 +2227,14 @@ function create_docker_compose_yml_file() {
         echo "    container_name: opensky"
         echo "    hostname: opensky"
         echo "    restart: always"
-        echo "    depends_on:"
-        echo "      - readsb"
+        if [[ "$depends_on_readsb" -eq 1 ]]; then
+            echo "    depends_on:"
+            echo "      - readsb"
+        fi
         echo "    environment:"
         echo '      - ALT=${FEEDER_ALT_M}'
-        echo "      - BEASTHOST=readsb"
+        echo '      - BEASTHOST=${BEASTHOST}'
+        echo '      - BEASTPORT=${BEASTPORT}'
         echo '      - LAT=${FEEDER_LAT}'
         echo '      - LONG=${FEEDER_LONG}'
         echo '      - OPENSKY_SERIAL=${OPENSKY_SERIAL}'
@@ -2192,10 +2257,13 @@ function create_docker_compose_yml_file() {
         echo "    container_name: planefinder"
         echo "    hostname: planefinder"
         echo "    restart: always"
-        echo "    depends_on:"
-        echo "      - readsb"
+        if [[ "$depends_on_readsb" -eq 1 ]]; then
+            echo "    depends_on:"
+            echo "      - readsb"
+        fi
         echo "    environment:"
-        echo "      - BEASTHOST=readsb"
+        echo '      - BEASTHOST=${BEASTHOST}'
+        echo '      - BEASTPORT=${BEASTPORT}'
         echo '      - LAT=${FEEDER_LAT}'
         echo '      - LONG=${FEEDER_LONG}'
         echo '      - SHARECODE=${PLANEFINDER_SHARECODE}'
@@ -2217,11 +2285,17 @@ function create_docker_compose_yml_file() {
         echo "    container_name: radarbox"
         echo "    hostname: radarbox"
         echo "    restart: always"
-        echo "    depends_on:"
-        echo "      - readsb"
+        if [[ "$depends_on_readsb" -eq 1 ]]; then
+            echo "    depends_on:"
+            echo "      - readsb"
+        fi
+        # implement fix for segfault - see: https://github.com/mikenye/docker-radarbox/issues/16#issuecomment-699627387
+        echo "    volumes:"
+        echo "      - radarbox_segfault_fix:/sys/class/thermal:ro"
         echo "    environment:"
         echo '      - ALT=${FEEDER_ALT_M}'
-        echo "      - BEASTHOST=readsb"
+        echo '      - BEASTHOST=${BEASTHOST}'
+        echo '      - BEASTPORT=${BEASTPORT}'
         echo '      - LAT=${FEEDER_LAT}'
         echo '      - LONG=${FEEDER_LONG}'
         echo '      - SHARING_KEY=${RADARBOX_SHARING_KEY}'
@@ -2234,6 +2308,228 @@ function create_docker_compose_yml_file() {
     fi
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
+}
+
+function get_datasource_preferences() {
+
+    # TODO:
+    #  - # "net_radarcape" "A remote radarcape system."
+    #  - # "rtlsdr" "Local RTL-SDR attached to this system."
+
+    source "$TMPFILE_NEWPREFS"
+
+    valid_datasource=0
+    while [[ "$valid_datasource" -eq 0 ]]; do
+
+        # determine defaults for radiolist
+
+        default_radiolist_net_sbs="OFF"
+        default_radiolist_net_beast="OFF"
+
+        case "$DATASOURCE_TYPE" in
+            net_sbs)
+                default_radiolist_net_sbs="ON"
+                ;;
+            net_beast)
+                default_radiolist_net_beast="ON"
+                ;;
+        esac
+
+        # Ask the user what feeder to use
+        if DATASOURCE_TYPE=$(whiptail \
+            --backtitle "$WHIPTAIL_BACKTITLE" \
+            --title "ADS-B ES data source" \
+            --radiolist "Select a source for you ADS-B ES 1090MHz data:" \
+            20 78 4 \
+            "net_sbs" "Remote host providing SBS protocol data." "$default_radiolist_net_sbs" \
+            "net_beast" "Remote host providing BEAST protocol data.  " "$default_radiolist_net_beast" \
+            3>&1 1>&2 2>&3); then    
+            :
+        else
+            exit_user_cancelled
+        fi
+
+        set_env_file_entry DATASOURCE_TYPE "$DATASOURCE_TYPE"
+
+        case "$DATASOURCE_TYPE" in
+            net_sbs)
+
+                title="SBS protocol data source"
+
+                valid_input=0
+                while [[ "$valid_input" -eq 0 ]]; do
+                
+                    # Prompt for SBSHOST & SBSPORT
+                    if SBSHOST=$(whiptail \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "$title"  \
+                        --inputbox "Enter the IP address or hostname of an SBS protocol data source:" \
+                        8 78 \
+                        "$SBSHOST" \
+                        3>&1 1>&2 2>&3); then
+                        :
+                    else
+                        exit_user_cancelled
+                    fi
+
+                    if SBSPORT=$(whiptail \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "$title" \
+                        --inputbox "Enter the TCP port of the SBS protocol data source:" \
+                        8 78 \
+                        "$SBSPORT" \
+                        3>&1 1>&2 2>&3); then
+                        :
+                    else
+                        exit_user_cancelled
+                    fi
+
+                    msg="Are these settings correct?\n"
+                    msg+=" - SBSHOST=$SBSHOST\n"
+                    msg+=" - SBSPORT=$SBSPORT"
+                    if whiptail \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "$title" \
+                        --yesno "$msg" \
+                        12 78; then
+                        :
+                        valid_input=1
+                    fi
+                done
+
+                set_env_file_entry SBSHOST "$SBSHOST"
+                set_env_file_entry SBSPORT "$SBSPORT"
+                del_env_file_entry BEASTHOST
+                del_env_file_entry BEASTPORT
+                ;;
+
+            net_beast)
+
+                title="BEAST protocol data source"
+            
+                valid_input=0
+                while [[ "$valid_input" -eq 0 ]]; do
+                
+                    # Prompt for SBSHOST & SBSPORT
+                    if BEASTHOST=$(whiptail \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "$title" \
+                        --inputbox "Enter the IP address or hostname of a BEAST protocol data source:" \
+                        8 78 \
+                        "$BEASTHOST" \
+                        3>&1 1>&2 2>&3); then
+                        :
+                    else
+                        exit_user_cancelled
+                    fi
+
+                    if BEASTPORT=$(whiptail \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "$title" \
+                        --inputbox "Enter the TCP port of the BEAST protocol data source:" \
+                        8 78 \
+                        "$BEASTPORT" \
+                        3>&1 1>&2 2>&3); then
+                        :
+                    else
+                        exit_user_cancelled
+                    fi
+
+                    msg="Are these settings correct?\n"
+                    msg+=" - BEASTHOST=$BEASTHOST\n"
+                    msg+=" - BEASTPORT=$BEASTPORT"
+                    if whiptail \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "$title" \
+                        --yesno "$msg" \
+                        12 78; then
+                        :
+                        valid_input=1
+                    fi
+                done
+
+                set_env_file_entry BEASTHOST "$BEASTHOST"
+                set_env_file_entry BEASTPORT "$BEASTPORT"
+                del_env_file_entry SBSHOST
+                del_env_file_entry SBSPORT
+                ;;
+        esac
+
+        # sanity checks
+        valid_datasource=1
+        case "$DATASOURCE_TYPE" in
+            net_sbs)
+                if [[ -z "$SBSHOST" ]]; then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid SBS host!" \
+                        --msgbox "Please enter a valid SBS host.\nCannot be blank." \
+                        10 74
+                elif [[ "$SBSHOST" == "localhost" ]]; then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid SBS host!" \
+                        --msgbox "Please enter a valid SBS host.\nYou cannot use 'localhost', instead use the LAN IP address of this host." \
+                        10 74
+                elif [[ "$SBSHOST" == "127.0.0.1" ]]; then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid SBS host!" \
+                        --msgbox "Please enter a valid SBS host.\nYou cannot use 'localhost', instead use the LAN IP address of this host." \
+                        10 74
+                elif ! ((SBSPORT >= 1024 && SBSPORT <= 65535)); then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid SBS port!" \
+                        --msgbox "Please enter a valid SBS TCP port.\nThe port must be between 1024-65535 (inclusive) and is typically 30003." \
+                        10 74
+                fi
+                ;;
+            net_beast)
+                if [[ -z "$BEASTHOST" ]]; then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid BEAST host!" \
+                        --msgbox "Please enter a valid SBS host.\nCannot be blank." \
+                        10 74
+                elif [[ "$BEASTHOST" == "localhost" ]]; then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid BEAST host!" \
+                        --msgbox "Please enter a valid BEAST host.\nYou cannot use 'localhost', instead use the LAN IP address of this host." \
+                        10 74
+                elif [[ "$BEASTHOST" == "127.0.0.1" ]]; then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid BEAST host!" \
+                        --msgbox "Please enter a valid BEAST host.\nYou cannot use 'localhost', instead use the LAN IP address of this host." \
+                        10 74
+                elif ! ((BEASTPORT >= 1024 && BEASTPORT <= 65535)); then
+                    valid_datasource=0
+                    whiptail \
+                        --clear \
+                        --backtitle "$WHIPTAIL_BACKTITLE" \
+                        --title "Invalid BEAST port!" \
+                        --msgbox "Please enter a valid BEAST TCP port.\nThe port must be between 1024-65535 (inclusive) and is typically 30005." \
+                        10 74
+                fi
+                ;;
+        esac
+    done
 }
 
 ##### MAIN SCRIPT #####
@@ -2418,7 +2714,10 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
         input_timezone
         input_lat_long
         input_altitude
+        get_datasource_preferences
         get_feeder_preferences
+        # TODO - visualisation preferences
+        # TODO - provide data externally details 
 
         title="Confirm Settings"
         msg="Please confirm all settings (scroll with arrow keys):\n\n"
