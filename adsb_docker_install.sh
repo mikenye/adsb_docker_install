@@ -2351,7 +2351,7 @@ get_latest_docker_compose_version
 if ! is_binary_installed docker-compose; then
     msg="This script needs to install docker-compose, which is used for:\n"
     msg+=" * Management and orchestration of containers!\n"
-    msg+="Is it ok to install docker?"
+    msg+="Is it ok to install docker-compose?"
     if whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "docker-compose" --yesno "$msg" 12 80; then
         install_docker_compose
     else
@@ -2363,8 +2363,8 @@ fi
 # Deploy temp container (for working & utilities required by this script)
 logger "main" "Deploying temporary helper container to assist with install..."
 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Deploying temporary helper container to assist with install..." 8 78
-# the sleep ensures the container will remove itself after 24 hours
-if CONTAINER_ID_TEMPORARY=$(docker run -d --rm -v "$PROJECTDIR":"$PROJECTDIR" "$IMAGE_TEMPORARY_HELPER" sleep 86400); then
+# the sleep ensures the container will remove itself after an hour
+if CONTAINER_ID_TEMPORARY=$(docker run -d --rm -v "$PROJECTDIR":"$PROJECTDIR" "$IMAGE_TEMPORARY_HELPER" sleep 3600); then
     logger "main" "Temp container $CONTAINER_ID_TEMPORARY deployed OK"
 else
     logger "main" "Failed to deploy temporary helper container :-("
@@ -2399,7 +2399,7 @@ while [[ "$confirm_prefs" -eq "0" ]]; do
                 --backtitle="$WHIPTAIL_BACKTITLE" \
                 --title "$title" \
                 --yes-button "Correct" \
-                --no-button "Re-enter"
+                --no-button "Re-enter" \
                 --yesno "$msg" \
                 18 78 \
                 --scrolltext); then
