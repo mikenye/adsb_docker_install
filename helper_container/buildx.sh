@@ -11,6 +11,3 @@ docker buildx use homecluster
 
 # Build & push latest
 docker buildx build --no-cache -t "${REPO}/${IMAGE}:latest" --compress --push --platform "${PLATFORMS}" .
-
-# Get readsb version from latest
-docker pull "${REPO}/${IMAGE}:latest"
