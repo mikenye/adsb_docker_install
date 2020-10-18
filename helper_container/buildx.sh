@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #shellcheck shell=bash
 
-pushd ./helper_container || exit 1
+pushd ./helper_container > /dev/null 2>&1 || exit 1
 
 REPO=mikenye
 IMAGE=adsb_docker_install_helper
@@ -14,4 +14,4 @@ docker buildx use homecluster
 # Build & push latest
 docker buildx build --no-cache -t "${REPO}/${IMAGE}:latest" --compress --push --platform "${PLATFORMS}" .
 
-popd || exit 1
+popd  > /dev/null 2>&1 || exit 1
