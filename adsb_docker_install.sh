@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2028,SC1090,SC2016
 
-# Disabled check notes:
+# Disabled shellcheck check notes:
 #   - SC1090: Can't follow non-constant source. Use a directive to specify location.
 #       - There are files that are sourced that don't yet exist until runtime.
 #   - SC2028: Echo may not expand escape sequences. Use printf.
@@ -50,7 +50,7 @@ REGEX_PATTERN_VALID_EMAIL_ADDRESS='^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$'
 REGEX_PATTERN_COMMENTS='^\s*#'
 
 # File/dir locations
-LOGFILE="/tmp/adsb_docker_install.log"
+LOGFILE="/tmp/adsb_docker_install.$(date -Iseconds).log"
 
 # Whiptail dialog globals
 WHIPTAIL_BACKTITLE="ADS-B Docker Easy Install"
@@ -104,30 +104,31 @@ RTLSDR_MODULES_TO_BLACKLIST+=(dvb_usb_rtl28xxu)
 RTLSDR_MODULES_TO_BLACKLIST+=(rtl2832)
 
 # Default settings for .env file
-ADSBX_UUID=
 ADSBX_SITENAME=
+ADSBX_UUID=
 BEASTHOST=
 BEASTPORT=30005
-FR24_KEY=
-FR24_RADAR_ID=
-FR24_EMAIL=
-PIAWARE_FEEDER_ID=
-PLANEFINDER_SHARECODE=
-PLANEFINDER_EMAIL=
-FEEDER_TZ=
-FEEDER_LAT=
-FEEDER_LONG=
-FEEDER_ALT_M=
-FEEDER_ALT_FT=
-FEEDER_ALT=
+DATASOURCE_TYPE=
 FEED_ADSBX=
-FEED_OPENSKY=
 FEED_FLIGHTAWARE=
 FEED_FLIGHTRADAR24=
+FEED_OPENSKY=
 FEED_PLANEFINDER=
 FEED_RADARBOX=
-OPENSKY_USERNAME=
+FEEDER_ALT_FT=
+FEEDER_ALT_M=
+FEEDER_ALT=
+FEEDER_LAT=
+FEEDER_LONG=
+FEEDER_TZ=
+FR24_EMAIL=
+FR24_KEY=
+FR24_RADAR_ID=
 OPENSKY_SERIAL=
+OPENSKY_USERNAME=
+PIAWARE_FEEDER_ID=
+PLANEFINDER_EMAIL=
+PLANEFINDER_SHARECODE=
 RADARBOX_SHARING_KEY=
 SBSHOST=
 SBSPORT=30003
@@ -446,7 +447,17 @@ function get_latest_docker_compose_version() {
     logger "get_latest_docker_compose_version" "Querying for latest version of docker-compose..."
     whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Finding latest version of docker-compose..." 8 78
 
-    # get latest tag version from cloned repo
+    if docker pull "$IMAGE_DOCKER_COMPOSE" >> "$LOGFILE" 2>&1; then
+    :
+    else
+        NEWT_COLORS='root=,red' \
+            whiptail \
+                --title "Error" \
+                --msgbox "Failed to pull (download) $IMAGE_DOCKER_COMPOSE :-(" 8 78
+        exit_failure
+    fi
+
+    # get latest tag version from image
     logger "get_latest_docker_compose_version" "Attempting to get latest tag from cloned docker-compose git repo"
     if docker_compose_version_latest=$(docker run --rm -it "$IMAGE_DOCKER_COMPOSE" -version | cut -d ',' -f 1 | rev | cut -d ' ' -f 1 | rev); then
         # do nothing
@@ -1080,7 +1091,17 @@ function input_fr24_details() {
                 # pull & start container
                 logger "input_fr24_details" "Running flightradar24 sign-up process (takes up to 2 mins)..."
                 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Running flightradar24 sign-up process (takes up to 2 mins)..." 8 78
-                docker pull mikenye/fr24feed >> "$LOGFILE" 2>&1
+
+                if docker pull mikenye/fr24feed >> "$LOGFILE" 2>&1; then
+                    :
+                else
+                    NEWT_COLORS='root=,red' \
+                        whiptail \
+                            --title "Error" \
+                            --msgbox "Failed to pull (download) mikenye/fr24feed :-(" 8 78
+                    exit_failure
+                fi
+
                 CONTAINER_ID_FR24=$(docker run -d --rm -it --entrypoint fr24feed mikenye/fr24feed --signup)
                 # write out expect script to attach to container and issue commands
                 write_fr24_expectscript "$CONTAINER_ID_FR24"
@@ -1210,7 +1231,17 @@ function input_piaware_details() {
                 # run through sign-up process
                 logger "input_piaware_details" "Running piaware feeder-id generation process (takes approx. 30 seconds)..."
                 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Running piaware feeder-id generation process (takes approx. 30 seconds)..." 8 78
-                docker pull mikenye/piaware >> "$LOGFILE" 2>&1
+
+                if docker pull mikenye/piaware >> "$LOGFILE" 2>&1; then
+                    :
+                else
+                    NEWT_COLORS='root=,red' \
+                        whiptail \
+                            --title "Error" \
+                            --msgbox "Failed to pull (download) mikenye/piaware :-(" 8 78
+                    exit_failure
+                fi
+
                 source "$TMPFILE_NEWPREFS"
                 CONTAINER_ID_PIAWARE=$(docker run \
                     -d \
@@ -1530,7 +1561,17 @@ function input_opensky_details() {
                 # run through sign-up process
                 logger "input_opensky_details" "Running OpenSky Network serial generation process (takes a few seconds)..."
                 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Running OpenSky Network serial generation process (takes a few seconds)..." 8 78
-                docker pull mikenye/opensky-network >> "$LOGFILE" 2>&1
+
+                if docker pull mikenye/opensky-network >> "$LOGFILE" 2>&1; then
+                    :
+                else
+                    NEWT_COLORS='root=,red' \
+                        whiptail \
+                            --title "Error" \
+                            --msgbox "Failed to pull (download) mikenye/opensky-network :-(" 8 78
+                    exit_failure
+                fi
+
                 CONTAINER_ID_OPENSKY=$(docker run \
                     -d \
                     --rm \
@@ -1642,7 +1683,17 @@ function input_radarbox_details() {
                 # run through sign-up process
                 logger "input_radarbox_details" "Running radarbox sharing key generation process (takes a few seconds)..."
                 whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Working..." --infobox "Running radarbox sharing key generation process (takes a few seconds)..." 8 78
-                docker pull mikenye/radarbox >> "$LOGFILE" 2>&1
+
+                if docker pull mikenye/radarbox >> "$LOGFILE" 2>&1; then
+                    :
+                else
+                    NEWT_COLORS='root=,red' \
+                        whiptail \
+                            --title "Error" \
+                            --msgbox "Failed to pull (download) mikenye/radarbox :-(" 8 78
+                    exit_failure
+                fi
+
                 # prepare to run the container
                 # set up fake thermal area (see: https://github.com/mikenye/docker-radarbox/issues/16)
                 source "$TMPFILE_NEWPREFS"
