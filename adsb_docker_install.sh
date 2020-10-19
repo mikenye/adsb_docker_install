@@ -12,7 +12,6 @@
 #       - This is by design when we're making the docker-compose.yml file
 
 # TODOs
-#  - docker containr log rotation
 #  - support local RTLSDR
 #  - support feeding from radarcape (need to update adsbx image)
 #  - if compose file exists, use yq (in helper container) to modify the file in place - this prevents clobbering user customisations
@@ -2199,6 +2198,11 @@ function create_docker_compose_yml_file() {
         echo "    container_name: adsbx"
         echo "    hostname: adsbx"
         echo "    restart: always"
+        echo "    logging:"
+        echo "      driver: json-file"
+        echo "      options:"
+        echo "        max-size: 10m"
+        echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
@@ -2230,6 +2234,11 @@ function create_docker_compose_yml_file() {
         echo "    container_name: piaware"
         echo "    hostname: piaware"
         echo "    restart: always"
+        echo "    logging:"
+        echo "      driver: json-file"
+        echo "      options:"
+        echo "        max-size: 10m"
+        echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
@@ -2258,6 +2267,11 @@ function create_docker_compose_yml_file() {
         echo "    container_name: fr24"
         echo "    hostname: fr24"
         echo "    restart: always"
+        echo "    logging:"
+        echo "      driver: json-file"
+        echo "      options:"
+        echo "        max-size: 10m"
+        echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
@@ -2284,6 +2298,11 @@ function create_docker_compose_yml_file() {
         echo "    container_name: opensky"
         echo "    hostname: opensky"
         echo "    restart: always"
+        echo "    logging:"
+        echo "      driver: json-file"
+        echo "      options:"
+        echo "        max-size: 10m"
+        echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
@@ -2314,6 +2333,11 @@ function create_docker_compose_yml_file() {
         echo "    container_name: planefinder"
         echo "    hostname: planefinder"
         echo "    restart: always"
+        echo "    logging:"
+        echo "      driver: json-file"
+        echo "      options:"
+        echo "        max-size: 10m"
+        echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
@@ -2342,6 +2366,11 @@ function create_docker_compose_yml_file() {
         echo "    container_name: radarbox"
         echo "    hostname: radarbox"
         echo "    restart: always"
+        echo "    logging:"
+        echo "      driver: json-file"
+        echo "      options:"
+        echo "        max-size: 10m"
+        echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
             echo "    depends_on:"
             echo "      - readsb"
