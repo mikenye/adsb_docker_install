@@ -2790,8 +2790,8 @@ if ! is_binary_installed docker; then
     msg="This script needs to install docker, which is used for:\n"
     msg+=" * Running the containers!\n"
     msg+="Is it ok to install docker?"
-    if whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Package expect" --yesno "$msg" 12 80; then
-        install docker
+    if whiptail --backtitle "$WHIPTAIL_BACKTITLE" --title "Package docker" --yesno "$msg" 12 80; then
+        install_docker
     else
         exit_user_cancelled
     fi
