@@ -2126,27 +2126,33 @@ function set_rtlsdr_serial_to_00001090() {
 
 function create_docker_compose_yml_file() {
 
+    logger "create_docker_compose_yml_file" "Creating docker_compose.yml file"
+
     source "$PREFSFILE"
 
     # adjust depends_on depending on feeder...
     case "$DATASOURCE_TYPE" in
         rtlsdr)
+            logger "create_docker_compose_yml_file" "Data source type $DATASOURCE_TYPE depends on readsb"
             depends_on_readsb=1
             ;;
         *)
             depends_on_readsb=0
+            logger "create_docker_compose_yml_file" "Data source type $DATASOURCE_TYPE does not depend on readsb"
             ;;
     esac
 
     # do we need to create the volumes section?
     if [[ "$FEED_RADARBOX" == "ON" ]]; then
         create_volumes_section=1
+        logger "create_docker_compose_yml_file" "FEED_RADARBOX is set to $FEED_RADARBOX, so need to create temp fix vol"
     else
         create_volumes_section=0
     fi
 
 
     # Top part of compose file
+    logger "create_docker_compose_yml_file" "Creating header"
     {
         # write header into docker-compose
         echo "# Please do not remove/modify the two lines below:"
@@ -2163,6 +2169,7 @@ function create_docker_compose_yml_file() {
 
     # Define volumes
     if [[ "$create_volumes_section" -eq 1 ]]; then
+        logger "create_docker_compose_yml_file" "Creating volumes section"
         {
             echo "volumes:"
             echo ""
@@ -2170,6 +2177,7 @@ function create_docker_compose_yml_file() {
 
         # implement fix for segfault - see: https://github.com/mikenye/docker-radarbox/issues/16#issuecomment-699627387
         if [[ "$FEED_RADARBOX" == "ON" ]]; then
+            logger "create_docker_compose_yml_file" "Creating volume definition for radarbox_segfault_fix"
             {
                 echo "  radarbox_segfault_fix:"
                 echo "    driver: local"
@@ -2184,6 +2192,7 @@ function create_docker_compose_yml_file() {
     fi
 
     # Define services
+    logger "create_docker_compose_yml_file" "Defining services"
     {
         echo "services:"
         echo ""
@@ -2191,6 +2200,7 @@ function create_docker_compose_yml_file() {
     } >> "$COMPOSEFILE"
 
     # ADSBX Service
+    logger "create_docker_compose_yml_file" "Defining service adsbx"
     {
         echo "  adsbx:"
         echo "    image: mikenye/adsbexchange:latest"
@@ -2204,6 +2214,7 @@ function create_docker_compose_yml_file() {
         echo "        max-size: 10m"
         echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
+            logger "create_docker_compose_yml_file" "Adding depends_on readsb"
             echo "    depends_on:"
             echo "      - readsb"
         fi
@@ -2220,11 +2231,14 @@ function create_docker_compose_yml_file() {
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_ADSBX" != "ON" ]]; then
+        logger "create_docker_compose_yml_file" "Commenting out definition as FEED_ADSBX=$FEED_ADSBX"
         sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     fi
+    logger "create_docker_compose_yml_file" "Adding definition to docker-compose.yml"
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
     # FlightAware (piaware) Service
+    logger "create_docker_compose_yml_file" "Defining service piaware"
     {
         # TODO - port mapping for skyaware if wanted
         # TODO - bing maps API key
@@ -2240,6 +2254,7 @@ function create_docker_compose_yml_file() {
         echo "        max-size: 10m"
         echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
+            logger "create_docker_compose_yml_file" "Adding depends_on readsb"
             echo "    depends_on:"
             echo "      - readsb"
         fi
@@ -2254,11 +2269,14 @@ function create_docker_compose_yml_file() {
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_FLIGHTAWARE" != "ON" ]]; then
+        logger "create_docker_compose_yml_file" "Commenting out definition as FEED_FLIGHTAWARE=$FEED_FLIGHTAWARE"
         sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     fi
+    logger "create_docker_compose_yml_file" "Adding definition to docker-compose.yml"
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
     # FlightRadar24 Service
+    logger "create_docker_compose_yml_file" "Defining service fr24"
     {
         # TODO - port mapping if wanted
         echo "  fr24:"
@@ -2273,6 +2291,7 @@ function create_docker_compose_yml_file() {
         echo "        max-size: 10m"
         echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
+            logger "create_docker_compose_yml_file" "Adding depends_on readsb"
             echo "    depends_on:"
             echo "      - readsb"
         fi
@@ -2286,11 +2305,14 @@ function create_docker_compose_yml_file() {
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_FLIGHTRADAR24" != "ON" ]]; then
+        logger "create_docker_compose_yml_file" "Commenting out definition as FEED_FLIGHTRADAR24=$FEED_FLIGHTRADAR24"
         sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     fi
+    logger "create_docker_compose_yml_file" "Adding definition to docker-compose.yml"
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
     # Opensky Service
+    logger "create_docker_compose_yml_file" "Defining service opensky"
     {
         echo "  opensky:"
         echo "    image: mikenye/opensky-network:latest"
@@ -2304,6 +2326,7 @@ function create_docker_compose_yml_file() {
         echo "        max-size: 10m"
         echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
+            logger "create_docker_compose_yml_file" "Adding depends_on readsb"
             echo "    depends_on:"
             echo "      - readsb"
         fi
@@ -2320,11 +2343,14 @@ function create_docker_compose_yml_file() {
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_OPENSKY" != "ON" ]]; then
+        logger "create_docker_compose_yml_file" "Commenting out definition as FEED_OPENSKY=$FEED_OPENSKY"
         sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     fi
+    logger "create_docker_compose_yml_file" "Adding definition to docker-compose.yml"
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
     # Planefinder Service
+    logger "create_docker_compose_yml_file" "Defining service planefinder"
     {
         # TODO - port mapping if wanted
         echo "  planefinder:"
@@ -2339,6 +2365,7 @@ function create_docker_compose_yml_file() {
         echo "        max-size: 10m"
         echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
+            logger "create_docker_compose_yml_file" "Adding depends_on readsb"
             echo "    depends_on:"
             echo "      - readsb"
         fi
@@ -2353,11 +2380,14 @@ function create_docker_compose_yml_file() {
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_PLANEFINDER" != "ON" ]]; then
+        logger "create_docker_compose_yml_file" "Commenting out definition as FEED_PLANEFINDER=$FEED_PLANEFINDER"
         sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     fi
+    logger "create_docker_compose_yml_file" "Adding definition to docker-compose.yml"
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
     # Radarbox Service
+    logger "create_docker_compose_yml_file" "Defining service radarbox"
     {
         # TODO - port mapping if wanted
         echo "  radarbox:"
@@ -2372,6 +2402,7 @@ function create_docker_compose_yml_file() {
         echo "        max-size: 10m"
         echo "        max-file: 3"
         if [[ "$depends_on_readsb" -eq 1 ]]; then
+            logger "create_docker_compose_yml_file" "Adding depends_on readsb"
             echo "    depends_on:"
             echo "      - readsb"
         fi
@@ -2390,8 +2421,10 @@ function create_docker_compose_yml_file() {
     } > "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     # If this service isn't enabled, comment it out
     if [[ "$FEED_RADARBOX" != "ON" ]]; then
+        logger "create_docker_compose_yml_file" "Commenting out definition as FEED_RADARBOX=$FEED_RADARBOX"
         sed -e -i 's/^/# /g' "$TMPFILE_DOCKER_COMPOSE_SCRATCH"
     fi
+    logger "create_docker_compose_yml_file" "Adding definition to docker-compose.yml"
     cat "$TMPFILE_DOCKER_COMPOSE_SCRATCH" >> "$COMPOSEFILE"
 
 }
